@@ -3,23 +3,33 @@ import axios from 'axios';
 
 function App() {
   const [users, setUsers] = useState([]);
+  const [sorMaster, setSorMaster] = useState([]);
 
   useEffect(() => {
-    axios.get('http://localhost:5000/api/users')
-      .then(res => setUsers(res.data))
+    axios.get('http://localhost:5000/api/SorMaster')
+      .then(res => { console.log("API Response:", res.data);;
+        setSorMaster(res.data) 
+      })
       .catch(err => console.error(err));
   }, []);
 
   return (
     <div>
-      <h1>Users Dashboard</h1>
-      <ul>
-        {users.map(user => (
-          <li key={user.ID}>{user.Name}</li>
-        ))}
-      </ul>
+      <h1>Dashboard</h1>
+      <td>
+        <ul>
+            {Array.isArray(sorMaster) && sorMaster.map(item => (
+              <li key={item.ID || item.id || Math.random()}>
+                {JSON.stringify(item)}
+              </li>
+            ))}
+        </ul>
+      </td>
+      
     </div>
   );
+
+
 }
 
 export default App;
