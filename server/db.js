@@ -7,9 +7,19 @@ const config = {
   server: process.env.DB_SERVER,
   database: process.env.DB_DATABASE,
   options: {
-    encrypt: false, // use true if you're using Azure
+    encrypt: false, // set to true when required by your SQL Server
     trustServerCertificate: true,
   },
 };
 
-module.exports = config;
+const poolPromise = new sql.ConnectionPool(config)
+  .connect()
+  .then((pool) => {
+    return pool;
+  })
+  .catch((err) => {
+    console.error('Database connection failed:', err);
+    throw err;
+  });
+
+module.exports = { sql, poolPromise };

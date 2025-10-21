@@ -1,23 +1,12 @@
 const express = require('express');
-const sql = require('mssql');
 const cors = require('cors');
-const config = require('./db');
 
 const app = express();
 app.use(cors());
 app.use(express.json());
 
-// Test API route
-app.get('/api/SorMaster', async (req, res) => {
-    try {
-        await sql.connect(config);
-        const result = await sql.query('Select TOP 100 * From  SorMaster');
-        res.json(result.recordset);
-    } catch (err) {
-        console.error(err);
-        res.status(500).send('Databse Server Error');
-    }
-});
+app.use('/api/SorMaster', require('./routes/sorMaster'));
+app.use('/api/ArTrnSummary', require('./routes/arTrnSummary'));
 
 const PORT = 5000;
 app.listen(PORT, () => console.log(`Server running on http://localhost:${PORT}`));

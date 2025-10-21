@@ -1,0 +1,151 @@
+Thanks for the clarification — that setup makes perfect sense and is actually **a common and recommended structure** when building a full-stack app with React (frontend) and Node/Express (backend).
+
+You have:
+
+```
+project-root/
+│
+├── client/          <-- React frontend
+│   └── src/
+│       └── App.js   <-- your main frontend logic
+│
+└── server/          <-- Express backend
+    └── server.js    <-- your backend API
+```
+
+---
+
+## ✅ Your Setup Summary
+
+| Part           | Location                              | Purpose                                     |
+| -------------- | ------------------------------------- | ------------------------------------------- |
+| **Frontend**   | `client/src/App.js`                   | Calls API and displays data                 |
+| **Backend**    | `server/server.js`                    | Provides API endpoints for React to consume |
+| **API Routes** | `/api/SorMaster`, `/api/ArTrnSummary` | Serve data from SQL Server                  |
+
+---
+
+## 💡 Is This Structure Okay?
+
+**Yes, absolutely.** This is a standard **React + Express** structure.
+
+But here are a few tips to make it better organized and easier to manage long-term.
+
+---
+
+## 🧠 Suggestions for Improvement
+
+### 1. 📁 Organize your server folder
+
+**Current:**
+
+```
+server/
+└── server.js
+```
+
+**Better:**
+
+```
+server/
+├── server.js
+├── db.js            <-- SQL config
+└── routes/
+    ├── sorMaster.js
+    └── arTrnSummary.js
+```
+
+You can modularize routes like this:
+
+```js
+// routes/sorMaster.js
+const express = require('express');
+const router = express.Router();
+const sql = require('mssql');
+const config = require('../db');
+
+router.get('/', async (req, res) => {
+    try {
+        await sql.connect(config);
+        const result = await sql.query('SELECT TOP 100 * FROM SorMaster');
+        res.json(result.recordset);
+    } catch (err) {
+        console.error(err);
+        res.status(500).send('Database Server Error');
+    }
+});
+
+module.exports = router;
+```
+
+Then in `server.js`:
+
+```js
+const express = require('express');
+const cors = require('cors');
+
+const app = express();
+app.use(cors());
+app.use(express.json());
+
+app.use('/api/SorMaster', require('./routes/sorMaster'));
+app.use('/api/ArTrnSummary', require('./routes/arTrnSummary'));
+
+const PORT = 5000;
+app.listen(PORT, () => console.log(`Server running on http://localhost:${PORT}`));
+```
+
+---
+
+### 2. 📦 Use a Proxy for Easier API Calls (in dev)
+
+In `client/package.json`, add this line:
+
+```json
+"proxy": "http://localhost:5000"
+```
+
+Then in your frontend, **you can make calls like this**:
+
+```js
+axios.get('/api/ArTrnSummary') // instead of full http://localhost:5000/api...
+```
+
+React will automatically forward requests to your Express backend while in development.
+
+---
+
+### 3. 🔄 Use Environment Variables (Optional but Best Practice)
+
+Move sensitive or configurable values like database config and port into `.env` files.
+
+* `.env` in server:
+
+  ```env
+  PORT=5000
+  DB_USER=yourUser
+  DB_PASSWORD=yourPassword
+  ...
+  ```
+
+Then load it using `dotenv`:
+
+```js
+require('dotenv').config();
+const port = process.env.PORT || 5000;
+```
+
+---
+
+## ✅ Conclusion
+
+Your current folder structure:
+
+* ✔️ React frontend and Express backend separated — ✅ Good practice
+* ✔️ Backend APIs working — ✅ Confirmed
+* ❌ Both frontend requests used same state — ✅ Fixed above
+* 🔧 Recommended: modularize backend code, use proxy, environment variables
+
+---
+
+Let me know if you want a template or starter project with this structure pre-configured!
