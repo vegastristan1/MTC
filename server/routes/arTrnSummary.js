@@ -11,7 +11,24 @@ router.get('/', async (req, res) => {
 
         const request = pool.request();
         let query = `
-            SELECT TOP (${safeLimit}) *
+            SELECT TOP (${safeLimit}) 
+                Invoice,
+                SalesOrder,
+                InvoiceDate,
+                Salesperson,
+                Customer,
+                OrderType,
+                CustomerPoNumber,
+                MerchandiseValue,
+                TaxValue,
+                DiscValue,
+                MerchandiseCost,
+                WarehouseAccount,
+                WarehouseAmount,
+                BranchSalesAccount,
+                BranchSalesAmount,
+                BranchCostAccount,
+                Operator
             FROM ArTrnSummary
         `;
 
