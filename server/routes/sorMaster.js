@@ -12,23 +12,15 @@ router.get('/', async (req, res) => {
         const request = pool.request();
         let query = `
             SELECT TOP (${safeLimit}) SalesOrder,
-    OrderStatus,
-    DocumentType,
-    Customer,
-    Salesperson,
-    CustomerPoNumber,
-    OrderDate,
-    EntrySystemDate,
-    ReqShipDate,
-    DateLastDocPrt,
-    EntInvoice,
-    EntInvoiceDate,
-    OrderType,
-    Area,
-    Warehouse,
-    LastInvoice,
-    CustomerName,
-    LastOperator
+            Customer,
+            Salesperson,
+            CustomerPoNumber,
+            OrderDate,
+            ReqShipDate,
+            DateLastDocPrt,
+            LastInvoice,
+            CustomerName,
+            LastOperator
             FROM SorMaster
         `;
 

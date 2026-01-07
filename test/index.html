@@ -1,0 +1,21 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Gesture Particle System</title>
+    <style>
+        body { margin: 0; overflow: hidden; background: #000; font-family: sans-serif; }
+        #ui-panel { position: absolute; top: 20px; left: 20px; z-index: 10; background: rgba(255,255,255,0.1); backdrop-filter: blur(10px); padding: 20px; border-radius: 8px; color: white; }
+        canvas { display: block; }
+        #video-input { display: none; } /* Hidden camera feed */
+    </style>
+</head>
+<body>
+    <div id="ui-panel">
+        <h2 style="margin-top:0">Particle Control</h2>
+        <button onclick="toggleFullscreen()">Toggle Fullscreen</button>
+    </div>
+    <video id="video-input"></video>
+    <script type="module" src="main.js"></script>
+</body>
+</html>
