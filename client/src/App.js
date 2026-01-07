@@ -259,20 +259,12 @@ const DataPage = ({
 function App() {
   const sorMasterColumns = [
     'SalesOrder',
-    'OrderStatus',
-    'DocumentType',
     'Customer',
     'Salesperson',
     'CustomerPoNumber',
     'OrderDate',
-    'EntrySystemDate',
     'ReqShipDate',
     'DateLastDocPrt',
-    'EntInvoice',
-    'EntInvoiceDate',
-    'OrderType',
-    'Area',
-    'Warehouse',
     'LastInvoice',
     'CustomerName',
     'LastOperator'
@@ -396,7 +388,7 @@ function App() {
   return (
     <Router>
       <div style={{ padding: '20px' }}>
-        <h1>Dashboard : LJ ♡ Lhadz </h1>
+        <h1>Dashboard</h1>
 
         <nav style={{ display: 'flex', gap: '12px', marginBottom: '20px' }}>
           <NavLink to="/sormaster" style={({ isActive }) => navLinkStyle(isActive)}>
