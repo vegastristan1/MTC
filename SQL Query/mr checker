@@ -1,0 +1,39 @@
+SELECT
+    sa.StockCode,
+    sa.Description,
+
+    -- Cartons
+    TP.TotalPCS / CAST(im.ConvFactAltUom AS int) AS CS,
+
+    -- Remaining pieces
+    TP.TotalPCS % CAST(im.ConvFactAltUom AS int) AS PCS,
+
+    imv.TrnValue * 1.12 AS Amount,
+    ats.SalesOrder,
+    ats.Invoice,
+    ats.Customer,
+    ats.Salesperson,
+    imv.Warehouse,
+    ats.Operator,
+    CONVERT(varchar, imv.EntryDate, 101) AS [DATE],
+    sa.CreditReason
+FROM InvMovements imv
+JOIN ArTrnSummary ats
+    ON ats.SalesOrder = imv.SalesOrder
+JOIN InvMaster im
+    ON im.StockCode = imv.StockCode
+LEFT JOIN SorAdditions sa
+    ON sa.SalesOrder = imv.SalesOrder
+   AND sa.StockCode  = imv.StockCode
+CROSS APPLY (
+    SELECT CAST(
+        ROUND(ABS(imv.TrnQty) * im.ConvFactAltUom, 0)
+        AS int
+    ) AS TotalPCS
+) TP
+WHERE
+    imv.Warehouse = 'MR'
+    AND imv.TrnQty < 0
+    AND sa.StockCode IS NOT NULL
+    AND imv.EntryDate BETWEEN '2026-01-01' AND '2026-01-12'
+Order by Invoice asc;
