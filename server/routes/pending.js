@@ -3,8 +3,36 @@ const express = require('express');
 const router = express.Router();
 const { poolPromise } = require('../db');
 
+// Cache configuration (simple in-memory cache)
+const cache = new Map();
+const CACHE_TTL = 60000; // 1 minute cache
+
+const getCachedData = (key) => {
+    const cached = cache.get(key);
+    if (cached && Date.now() - cached.timestamp < CACHE_TTL) {
+        return cached.data;
+    }
+    return null;
+};
+
+const setCacheData = (key, data) => {
+    cache.set(key, { data, timestamp: Date.now() });
+    // Clean up old cache entries
+    if (cache.size > 100) {
+        const firstKey = cache.keys().next().value;
+        cache.delete(firstKey);
+    }
+};
+
 router.get('/', async (req, res) => {
     try {
+        // Check cache first
+        const cacheKey = 'pending-total';
+        const cachedResult = getCachedData(cacheKey);
+        if (cachedResult) {
+            return res.json(cachedResult);
+        }
+
         const pool = await poolPromise;
         const request = pool.request();
 
@@ -23,32 +51,44 @@ router.get('/', async (req, res) => {
         request.input('startDate', startDate);
         request.input('endDate', endDate);
 
+        // Optimized query with proper filtering order
         const query = `
-            Select SUM(SorAdditions.LineValue * 1.12) as totalValueWithTax
-            from SorMaster
-            Right Join SorAdditions on SorAdditions.SalesOrder = SorMaster.SalesOrder
-            where SorMaster.OrderStatus in ('8', '0') and OrderDate between @startDate and @endDate
-            and SorMaster.OrderType = 'B' and SorMaster.DocumentType = 'B'
-            and SorAdditions.LineValue > 0 and SorMaster.Salesperson in ('F01', 'F03', 'F04', 'N01', 'N02', 'N03', 'N05', 'N06', 'N07', 'N08', 'N12', 'N14', 'N75')
+            SELECT SUM(sa.LineValue * 1.12) as totalValueWithTax
+            FROM SorMaster sm
+            INNER JOIN SorAdditions sa ON sa.SalesOrder = sm.SalesOrder
+            WHERE sm.OrderStatus IN ('8', '0')
+              AND sm.OrderDate >= @startDate 
+              AND sm.OrderDate < DATEADD(day, 1, @endDate)
+              AND sm.OrderType = 'B' 
+              AND sm.DocumentType = 'B'
+              AND sm.Salesperson IN ('F01', 'F03', 'F04', 'N01', 'N02', 'N03', 'N05', 'N06', 'N07', 'N08', 'N12', 'N14', 'N75')
+              AND sa.LineValue > 0
         `;
 
         const result = await request.query(query);
         const totalValue = result.recordset[0]?.totalValueWithTax || 0;
-        res.json({
-            totalValueWithTax: totalValue
-        });
+        
+        const response = { totalValueWithTax: totalValue };
+        setCacheData(cacheKey, response);
+        
+        res.json(response);
     } catch (err) {
         console.error('Pending query failed:', err);
         res.status(500).send('Database Server Error');
     }
 });
 
-// Get list of pending SalesOrders for current month
+// Get paginated list of pending SalesOrders for current month
 router.get('/list', async (req, res) => {
     try {
         const pool = await poolPromise;
         const request = pool.request();
-
+        
+        // Pagination parameters
+        const page = parseInt(req.query.page) || 1;
+        const pageSize = parseInt(req.query.pageSize) || 50;
+        const searchTerm = req.query.search || '';
+        
         // Get current month dates
         const now = new Date();
         const year = now.getFullYear();
@@ -60,29 +100,79 @@ router.get('/list', async (req, res) => {
 
         request.input('startDate', startDate);
         request.input('endDate', endDate);
+        request.input('pageSize', pageSize);
+        request.input('offset', (page - 1) * pageSize);
 
+        // Build WHERE clause with search support
+        let whereClause = `
+            WHERE sm.OrderStatus IN ('8', '0')
+              AND sm.OrderDate >= @startDate 
+              AND sm.OrderDate < DATEADD(day, 1, @endDate)
+              AND sm.OrderType = 'B'
+              AND sm.DocumentType = 'B'
+              AND sm.Salesperson IN ('F01','F03','F04','N01','N02','N03','N05','N06','N07','N08','N12','N14','N75')
+        `;
+
+        if (searchTerm) {
+            request.input('searchTerm', `%${searchTerm}%`);
+            whereClause += `
+              AND (
+                sm.SalesOrder LIKE @searchTerm
+                OR sm.CustomerName LIKE @searchTerm
+                OR sm.CustomerPoNumber LIKE @searchTerm
+              )
+            `;
+        }
+
+        // Optimized query with pagination
         const query = `
             SELECT SalesOrder, OrderStatus, DocumentType, Customer, Salesperson, 
                    CustomerPoNumber, CustomerName, OrderDate, ReqShipDate, Branch, 
                    Warehouse, LastOperator
             FROM SorMaster sm
-            WHERE sm.OrderStatus IN ('8', '0')
-              AND sm.OrderDate BETWEEN @startDate AND @endDate
-              AND sm.OrderType = 'B'
-              AND sm.DocumentType = 'B'
-              AND sm.Salesperson IN ('F01','F03','F04','N01','N02','N03','N05','N06','N07','N08','N12','N14','N75')
+            ${whereClause}
               AND EXISTS (
-                    SELECT 1
-                    FROM SorAdditions sa
-                    WHERE sa.SalesOrder = sm.SalesOrder
-                      AND sa.LineValue > 0
+                  SELECT 1
+                  FROM SorAdditions sa
+                  WHERE sa.SalesOrder = sm.SalesOrder
+                    AND sa.LineValue > 0
               )
             ORDER BY sm.SalesOrder DESC
+            OFFSET @offset ROWS
+            FETCH NEXT @pageSize ROWS ONLY
         `;
 
-        const result = await request.query(query);
+        // Get total count for pagination
+        const countQuery = `
+            SELECT COUNT(*) as total
+            FROM SorMaster sm
+            ${whereClause}
+              AND EXISTS (
+                  SELECT 1
+                  FROM SorAdditions sa
+                  WHERE sa.SalesOrder = sm.SalesOrder
+                    AND sa.LineValue > 0
+              )
+        `;
+
+        const [listResult, countResult] = await Promise.all([
+            request.query(query),
+            request.query(countQuery)
+        ]);
+
+        const total = countResult.recordset[0]?.total || 0;
+        const totalPages = Math.ceil(total / pageSize);
+
         res.json({
-            data: result.recordset || []
+            data: listResult.recordset || [],
+            pagination: {
+                page,
+                pageSize,
+                total,
+                totalPages,
+                hasNextPage: page < totalPages,
+                hasPreviousPage: page > 1
+            }
         });
     } catch (err) {
         console.error('Pending list query failed:', err);
@@ -113,7 +203,7 @@ router.get('/details/:salesOrder', async (req, res) => {
         
         // Get line items with ValueWithTax
         const lineItemsQuery = `
-            SELECT sa.StockCode, sa.Description, sa.OrderQty, sa.UnitPrice, 
+            SELECT sa.StockCode, sa.Description, sa.OrderQty, sa.Price, 
                    sa.LineValue, sa.LineValue * 1.12 as ValueWithTax, sa.Salesperson
             FROM SorAdditions sa
             WHERE sa.SalesOrder = @salesOrder AND sa.LineValue > 0

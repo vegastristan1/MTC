@@ -237,6 +237,15 @@ const DashboardPage = () => {
   const [selectedOrder, setSelectedOrder] = useState(null);
   const [orderDetails, setOrderDetails] = useState(null);
   const [orderDetailsLoading, setOrderDetailsLoading] = useState(false);
+  
+  // Pagination and search states for pending list
+  const [pendingPage, setPendingPage] = useState(1);
+  const [pendingPageSize, setPendingPageSize] = useState(50);
+  const [pendingTotal, setPendingTotal] = useState(0);
+  const [pendingTotalPages, setPendingTotalPages] = useState(0);
+  const [pendingSearchTerm, setPendingSearchTerm] = useState('');
+  const [pendingDebouncedSearch, setPendingDebouncedSearch] = useState('');
+  const [pendingListCache, setPendingListCache] = useState({});
 
   const [chartData] = useState([
     { month: 'Jan', sales: 45000, orders: 120 },
@@ -293,23 +302,67 @@ const DashboardPage = () => {
       .finally(() => setPendingLoading(false));
   }, []);
 
-  // Fetch pending list for modal
-  const fetchPendingList = () => {
+  // Debounced search for pending list
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setPendingDebouncedSearch(pendingSearchTerm);
+      setPendingPage(1); // Reset to first page on search
+    }, 300);
+    
+    return () => clearTimeout(timer);
+  }, [pendingSearchTerm]);
+
+  // Fetch pending list for modal with pagination
+  const fetchPendingList = (page = pendingPage) => {
     setShowPendingModal(true);
     setPendingListLoading(true);
     setSelectedOrder(null);
     setOrderDetails(null);
     
-    axios.get('/api/pending/list')
+    // Check cache first
+    const cacheKey = `page_${page}_size_${pendingPageSize}_search_${pendingDebouncedSearch}`;
+    if (pendingListCache[cacheKey]) {
+      setPendingList(pendingListCache[cacheKey].data);
+      setPendingTotal(pendingListCache[cacheKey].total);
+      setPendingTotalPages(pendingListCache[cacheKey].totalPages);
+      setPendingListLoading(false);
+      return;
+    }
+    
+    axios.get(`/api/pending/list`, {
+      params: {
+        page,
+        pageSize: pendingPageSize,
+        search: pendingDebouncedSearch
+      }
+    })
       .then((res) => {
-        setPendingList(res.data.data || []);
+        const { data, pagination } = res.data;
+        setPendingList(data || []);
+        setPendingTotal(pagination.total);
+        setPendingTotalPages(pagination.totalPages);
+        
+        // Cache the result
+        setPendingListCache(prev => ({
+          ...prev,
+          [cacheKey]: { data, total: pagination.total, totalPages: pagination.totalPages }
+        }));
       })
       .catch((err) => {
         console.error('Error fetching pending list:', err);
         setPendingList([]);
+        setPendingTotal(0);
+        setPendingTotalPages(0);
       })
       .finally(() => setPendingListLoading(false));
   };
+
+  // Load initial data when modal opens or page/search changes
+  useEffect(() => {
+    if (showPendingModal && !selectedOrder) {
+      fetchPendingList(pendingPage);
+    }
+  }, [showPendingModal, pendingPage, pendingDebouncedSearch]);
 
   // Fetch order details
   const fetchOrderDetails = (salesOrder) => {
@@ -691,22 +744,57 @@ const DashboardPage = () => {
               display: 'flex',
               justifyContent: 'space-between',
               alignItems: 'center',
+              flexWrap: 'wrap',
+              gap: '12px',
             }}>
               <h2 style={{ margin: 0, color: '#333' }}>
-                {selectedOrder ? `Sales Order Details: ${selectedOrder}` : 'Pending Sales Orders - This Month'}
+                {selectedOrder ? `Sales Order Details: ${selectedOrder}` : `Pending Sales Orders - This Month (${pendingTotal})`}
               </h2>
-              <button 
-                onClick={closeModal}
-                style={{
-                  background: 'none',
-                  border: 'none',
-                  fontSize: '24px',
-                  cursor: 'pointer',
-                  color: '#888',
-                }}
-              >
-                ×
-              </button>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                {!selectedOrder && (
+                  <>
+                    <input
+                      type="text"
+                      placeholder="Search orders..."
+                      value={pendingSearchTerm}
+                      onChange={(e) => setPendingSearchTerm(e.target.value)}
+                      style={{
+                        padding: '8px 12px',
+                        border: '1px solid #ddd',
+                        borderRadius: '6px',
+                        fontSize: '14px',
+                        width: '200px',
+                      }}
+                    />
+                    <button 
+                      onClick={closeModal}
+                      style={{
+                        background: 'none',
+                        border: 'none',
+                        fontSize: '24px',
+                        cursor: 'pointer',
+                        color: '#888',
+                      }}
+                    >
+                      ×
+                    </button>
+                  </>
+                )}
+                {selectedOrder && (
+                  <button 
+                    onClick={closeModal}
+                    style={{
+                      background: 'none',
+                      border: 'none',
+                      fontSize: '24px',
+                      cursor: 'pointer',
+                      color: '#888',
+                    }}
+                  >
+                    ×
+                  </button>
+                )}
+              </div>
             </div>
             
             {/* Modal Body */}
@@ -770,7 +858,7 @@ const DashboardPage = () => {
                               <td style={{ padding: '12px' }}>{item.StockCode}</td>
                               <td style={{ padding: '12px', maxWidth: '300px' }}>{item.Description}</td>
                               <td style={{ padding: '12px', textAlign: 'right' }}>{item.OrderQty}</td>
-                              <td style={{ padding: '12px', textAlign: 'right' }}>{parseFloat(item.UnitPrice || 0).toFixed(2)}</td>
+                              <td style={{ padding: '12px', textAlign: 'right' }}>{parseFloat(item.Price || 0).toFixed(2)}</td>
                               <td style={{ padding: '12px', textAlign: 'right' }}>{parseFloat(item.LineValue || 0).toFixed(2)}</td>
                               <td style={{ padding: '12px', textAlign: 'right', fontWeight: 'bold', color: '#28a745' }}>
                                 {parseFloat(item.ValueWithTax || 0).toFixed(2)}
@@ -787,63 +875,139 @@ const DashboardPage = () => {
               ) : (
                 // Pending List View
                 pendingListLoading ? (
-                  <p style={{ textAlign: 'center', color: '#888', padding: '40px' }}>Loading pending orders...</p>
-                ) : pendingList.length === 0 ? (
-                  <p style={{ textAlign: 'center', color: '#28a745', padding: '40px', fontWeight: '500' }}>✅ No pending orders for this month!</p>
-                ) : (
-                  <div style={{ overflowX: 'auto' }}>
-                    <table style={{ width: '100%', borderCollapse: 'collapse' }}>
-                      <thead>
-                        <tr style={{ borderBottom: '2px solid #e9ecef' }}>
-                          <th style={{ padding: '12px', textAlign: 'left' }}>Sales Order</th>
-                          <th style={{ padding: '12px', textAlign: 'left' }}>Customer</th>
-                          <th style={{ padding: '12px', textAlign: 'left' }}>Customer Name</th>
-                          <th style={{ padding: '12px', textAlign: 'left' }}>Order Date</th>
-                          <th style={{ padding: '12px', textAlign: 'left' }}>Status</th>
-                          <th style={{ padding: '12px', textAlign: 'left' }}>Salesperson</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {pendingList.map((order, idx) => (
-                          <tr 
-                            key={idx} 
-                            style={{ 
-                              borderBottom: '1px solid #e9ecef',
-                              cursor: 'pointer',
-                              backgroundColor: idx % 2 === 0 ? '#fff' : '#f8f9fa',
-                            }}
-                            onClick={() => fetchOrderDetails(order.SalesOrder)}
-                            onMouseEnter={(e) => {
-                              e.currentTarget.style.backgroundColor = '#e9ecef';
-                            }}
-                            onMouseLeave={(e) => {
-                              e.currentTarget.style.backgroundColor = idx % 2 === 0 ? '#fff' : '#f8f9fa';
-                            }}
-                          >
-                            <td style={{ padding: '12px', color: '#007bff', fontWeight: '500' }}>{order.SalesOrder}</td>
-                            <td style={{ padding: '12px' }}>{order.Customer}</td>
-                            <td style={{ padding: '12px', maxWidth: '200px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                              {order.CustomerName}
-                            </td>
-                            <td style={{ padding: '12px' }}>{order.OrderDate}</td>
-                            <td style={{ padding: '12px' }}>
-                              <span style={{
-                                padding: '4px 8px',
-                                borderRadius: '4px',
-                                fontSize: '12px',
-                                fontWeight: '500',
-                                backgroundColor: order.OrderStatus === '8' ? '#28a745' : '#fd7e14',
-                                color: '#fff',
-                              }}>
-                                {order.OrderStatus === '8' ? 'Open' : 'Pending'}
-                              </span>
-                            </td>
-                            <td style={{ padding: '12px' }}>{order.Salesperson}</td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
+                  <div style={{ textAlign: 'center', padding: '40px' }}>
+                    <div style={{ 
+                      display: 'inline-block',
+                      width: '40px', 
+                      height: '40px',
+                      border: '3px solid #f3f3f3',
+                      borderTop: '3px solid #3498db',
+                      borderRadius: '50%',
+                      animation: 'spin 1s linear infinite',
+                    }} />
+                    <style>{`@keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }`}</style>
+                    <p style={{ color: '#888', marginTop: '16px' }}>Loading pending orders...</p>
                   </div>
+                ) : pendingList.length === 0 ? (
+                  <p style={{ textAlign: 'center', color: '#28a745', padding: '40px', fontWeight: '500' }}>✅ No pending orders found!</p>
+                ) : (
+                  <>
+                    <div style={{ overflowX: 'auto' }}>
+                      <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+                        <thead>
+                          <tr style={{ borderBottom: '2px solid #e9ecef' }}>
+                            <th style={{ padding: '12px', textAlign: 'left' }}>Sales Order</th>
+                            <th style={{ padding: '12px', textAlign: 'left' }}>Customer</th>
+                            <th style={{ padding: '12px', textAlign: 'left' }}>Customer Name</th>
+                            <th style={{ padding: '12px', textAlign: 'left' }}>Order Date</th>
+                            <th style={{ padding: '12px', textAlign: 'left' }}>Status</th>
+                            <th style={{ padding: '12px', textAlign: 'left' }}>Salesperson</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {pendingList.map((order, idx) => (
+                            <tr 
+                              key={idx} 
+                              style={{ 
+                                borderBottom: '1px solid #e9ecef',
+                                cursor: 'pointer',
+                                backgroundColor: idx % 2 === 0 ? '#fff' : '#f8f9fa',
+                              }}
+                              onClick={() => fetchOrderDetails(order.SalesOrder)}
+                              onMouseEnter={(e) => {
+                                e.currentTarget.style.backgroundColor = '#e9ecef';
+                              }}
+                              onMouseLeave={(e) => {
+                                e.currentTarget.style.backgroundColor = idx % 2 === 0 ? '#fff' : '#f8f9fa';
+                              }}
+                            >
+                              <td style={{ padding: '12px', color: '#007bff', fontWeight: '500' }}>{order.SalesOrder}</td>
+                              <td style={{ padding: '12px' }}>{order.Customer}</td>
+                              <td style={{ padding: '12px', maxWidth: '200px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                                {order.CustomerName}
+                              </td>
+                              <td style={{ padding: '12px' }}>{order.OrderDate}</td>
+                              <td style={{ padding: '12px' }}>
+                                <span style={{
+                                  padding: '4px 8px',
+                                  borderRadius: '4px',
+                                  fontSize: '12px',
+                                  fontWeight: '500',
+                                  backgroundColor: order.OrderStatus === '8' ? '#28a745' : '#fd7e14',
+                                  color: '#fff',
+                                }}>
+                                  {order.OrderStatus === '8' ? 'Open' : 'Pending'}
+                                </span>
+                              </td>
+                              <td style={{ padding: '12px' }}>{order.Salesperson}</td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                    
+                    {/* Pagination Controls */}
+                    {pendingTotalPages > 1 && (
+                      <div style={{ 
+                        display: 'flex', 
+                        justifyContent: 'center', 
+                        alignItems: 'center', 
+                        gap: '8px',
+                        marginTop: '20px',
+                        paddingTop: '16px',
+                        borderTop: '1px solid #e9ecef',
+                      }}>
+                        <button
+                          onClick={() => setPendingPage(p => Math.max(1, p - 1))}
+                          disabled={pendingPage === 1}
+                          style={{
+                            padding: '8px 16px',
+                            backgroundColor: pendingPage === 1 ? '#e9ecef' : '#007bff',
+                            color: pendingPage === 1 ? '#888' : '#fff',
+                            border: 'none',
+                            borderRadius: '6px',
+                            cursor: pendingPage === 1 ? 'not-allowed' : 'pointer',
+                          }}
+                        >
+                          Previous
+                        </button>
+                        <span style={{ color: '#666', fontSize: '14px' }}>
+                          Page {pendingPage} of {pendingTotalPages} ({pendingTotal} total)
+                        </span>
+                        <button
+                          onClick={() => setPendingPage(p => Math.min(pendingTotalPages, p + 1))}
+                          disabled={pendingPage === pendingTotalPages}
+                          style={{
+                            padding: '8px 16px',
+                            backgroundColor: pendingPage === pendingTotalPages ? '#e9ecef' : '#007bff',
+                            color: pendingPage === pendingTotalPages ? '#888' : '#fff',
+                            border: 'none',
+                            borderRadius: '6px',
+                            cursor: pendingPage === pendingTotalPages ? 'not-allowed' : 'pointer',
+                          }}
+                        >
+                          Next
+                        </button>
+                        <select
+                          value={pendingPageSize}
+                          onChange={(e) => {
+                            setPendingPageSize(Number(e.target.value));
+                            setPendingPage(1);
+                          }}
+                          style={{
+                            padding: '8px 12px',
+                            border: '1px solid #ddd',
+                            borderRadius: '6px',
+                            marginLeft: '16px',
+                          }}
+                        >
+                          <option value={25}>25 per page</option>
+                          <option value={50}>50 per page</option>
+                          <option value={100}>100 per page</option>
+                        </select>
+                      </div>
+                    )}
+                  </>
                 )
               )}
             </div>
