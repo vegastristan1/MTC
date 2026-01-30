@@ -72,7 +72,46 @@ const DashboardPage = () => {
     { month: 'Jun', sales: 67000, orders: 152 },
   ]);
 
+  const [criticalStock, setCriticalStock] = useState([]);
+  const [criticalLoading, setCriticalLoading] = useState(true);
+  const [statusFilter, setStatusFilter] = useState('All');
+
   const maxSales = Math.max(...chartData.map(d => d.sales));
+
+  // Fetch critical stock data
+  useEffect(() => {
+    axios.get('/api/allStockCheckerInventory/critical')
+      .then((res) => {
+        console.log('Critical stock data:', res.data);
+        setCriticalStock(res.data.data || []);
+      })
+      .catch((err) => {
+        console.error('Error fetching critical stock:', err);
+      })
+      .finally(() => setCriticalLoading(false));
+  }, []);
+
+  // Get status badge style
+  const getStatusBadge = (status) => {
+    const styles = {
+      'No Stock': { backgroundColor: '#dc3545', color: '#fff' },
+      'Critical': { backgroundColor: '#fd7e14', color: '#fff' },
+      'Low': { backgroundColor: '#ffc107', color: '#333' },
+      'Warning': { backgroundColor: '#17a2b8', color: '#fff' },
+    };
+    return styles[status] || { backgroundColor: '#6c757d', color: '#fff' };
+  };
+
+  // Get status count
+  const getStatusCount = (status) => {
+    return criticalStock.filter(item => item.StockStatus === status).length;
+  };
+
+  // Get filtered items based on status filter
+  const getFilteredItems = () => {
+    if (statusFilter === 'All') return criticalStock;
+    return criticalStock.filter(item => item.StockStatus === statusFilter);
+  };
 
   return (
     <div style={mainContentStyle}>
@@ -190,6 +229,151 @@ const DashboardPage = () => {
               </div>
             ))}
           </div>
+        </div>
+
+        {/* Critical Stock Table */}
+        <div style={{ 
+          backgroundColor: '#fff',
+          borderRadius: '12px',
+          padding: '24px',
+          boxShadow: '0 2px 8px rgba(0,0,0,0.08)',
+          marginTop: '20px',
+          gridColumn: 'span 2',
+        }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
+            <h3 style={{ margin: '0', color: '#333' }}>🔴 Critical Stock Alert</h3>
+            <div style={{ display: 'flex', gap: '12px', alignItems: 'center' }}>
+              <button
+                onClick={() => setStatusFilter('All')}
+                style={{ 
+                  padding: '4px 12px', 
+                  borderRadius: '20px', 
+                  fontSize: '12px', 
+                  fontWeight: '600',
+                  backgroundColor: statusFilter === 'All' ? '#333' : '#6c757d', 
+                  color: '#fff',
+                  border: 'none',
+                  cursor: 'pointer',
+                  transition: 'all 0.2s ease',
+                }}
+              >
+                All: {criticalStock.length}
+              </button>
+              <button
+                onClick={() => setStatusFilter('No Stock')}
+                style={{ 
+                  padding: '4px 12px', 
+                  borderRadius: '20px', 
+                  fontSize: '12px', 
+                  fontWeight: '600',
+                  backgroundColor: statusFilter === 'No Stock' ? '#333' : '#dc3545', 
+                  color: '#fff',
+                  border: 'none',
+                  cursor: 'pointer',
+                  transition: 'all 0.2s ease',
+                }}
+              >
+                No Stock: {getStatusCount('No Stock')}
+              </button>
+              <button
+                onClick={() => setStatusFilter('Critical')}
+                style={{ 
+                  padding: '4px 12px', 
+                  borderRadius: '20px', 
+                  fontSize: '12px', 
+                  fontWeight: '600',
+                  backgroundColor: statusFilter === 'Critical' ? '#333' : '#fd7e14', 
+                  color: '#fff',
+                  border: 'none',
+                  cursor: 'pointer',
+                  transition: 'all 0.2s ease',
+                }}
+              >
+                Critical: {getStatusCount('Critical')}
+              </button>
+              <button
+                onClick={() => setStatusFilter('Low')}
+                style={{ 
+                  padding: '4px 12px', 
+                  borderRadius: '20px', 
+                  fontSize: '12px', 
+                  fontWeight: '600',
+                  backgroundColor: statusFilter === 'Low' ? '#333' : '#ffc107', 
+                  color: statusFilter === 'Low' ? '#fff' : '#333',
+                  border: 'none',
+                  cursor: 'pointer',
+                  transition: 'all 0.2s ease',
+                }}
+              >
+                Low: {getStatusCount('Low')}
+              </button>
+              <button
+                onClick={() => setStatusFilter('Warning')}
+                style={{ 
+                  padding: '4px 12px', 
+                  borderRadius: '20px', 
+                  fontSize: '12px', 
+                  fontWeight: '600',
+                  backgroundColor: statusFilter === 'Warning' ? '#333' : '#17a2b8', 
+                  color: '#fff',
+                  border: 'none',
+                  cursor: 'pointer',
+                  transition: 'all 0.2s ease',
+                }}
+              >
+                Warning: {getStatusCount('Warning')}
+              </button>
+            </div>
+          </div>
+          
+          {criticalLoading ? (
+            <p style={{ color: '#888', textAlign: 'center', padding: '40px' }}>Loading critical stock...</p>
+          ) : criticalStock.length === 0 ? (
+            <p style={{ color: '#28a745', textAlign: 'center', padding: '40px', fontWeight: '500' }}>✅ No critical stock items! All items have sufficient stock.</p>
+          ) : (
+            <div style={{ overflowX: 'auto' }}>
+              <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+                <thead>
+                  <tr style={{ borderBottom: '2px solid #e9ecef' }}>
+                    <th style={{ padding: '12px 16px', textAlign: 'left', color: '#555', fontWeight: '600', fontSize: '13px' }}>Stock Code</th>
+                    <th style={{ padding: '12px 16px', textAlign: 'left', color: '#555', fontWeight: '600', fontSize: '13px' }}>Description</th>
+                    <th style={{ padding: '12px 16px', textAlign: 'center', color: '#555', fontWeight: '600', fontSize: '13px' }}>Warehouse</th>
+                    <th style={{ padding: '12px 16px', textAlign: 'center', color: '#555', fontWeight: '600', fontSize: '13px' }}>On Hand</th>
+                    <th style={{ padding: '12px 16px', textAlign: 'center', color: '#555', fontWeight: '600', fontSize: '13px' }}>Status</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {getFilteredItems().map((item, index) => (
+                    <tr key={index} style={{ borderBottom: '1px solid #e9ecef', backgroundColor: index % 2 === 0 ? '#fff' : '#f8f9fa' }}>
+                      <td style={{ padding: '12px 16px', color: '#333', fontWeight: '500' }}>{item.StockCode}</td>
+                      <td style={{ padding: '12px 16px', color: '#555', maxWidth: '300px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                        {item.Description}
+                      </td>
+                      <td style={{ padding: '12px 16px', textAlign: 'center', color: '#555' }}>{item.Warehouse}</td>
+                      <td style={{ padding: '12px 16px', textAlign: 'center' }}>
+                        <span style={{ color: '#dc3545', fontWeight: '600', fontSize: '14px' }}>{item.OnHandCS} CS</span>
+                        <span style={{ color: '#888', fontSize: '11px', marginLeft: '6px' }}>/ {item.OnHandPcs} PCS</span>
+                        <div style={{ color: '#17a2b8', fontSize: '10px', marginTop: '2px' }}>
+                          Free: {item.StockFreeCS} CS / {item.StockFreePCS} PCS
+                        </div>
+                      </td>
+                      <td style={{ padding: '12px 16px', textAlign: 'center' }}>
+                        <span style={{ 
+                          padding: '4px 12px', 
+                          borderRadius: '20px', 
+                          fontSize: '11px', 
+                          fontWeight: '600',
+                          ...getStatusBadge(item.StockStatus)
+                        }}>
+                          {item.StockStatus}
+                        </span>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
         </div>
       </div>
     </div>

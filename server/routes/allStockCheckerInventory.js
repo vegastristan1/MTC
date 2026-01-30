@@ -126,4 +126,73 @@ router.get('/warehouses', async (req, res) => {
     }
 });
 
+// Get critical stock items (stock <= 20) - M1 Warehouse only
+router.get('/critical', async (req, res) => {
+    try {
+        const pool = await poolPromise;
+        const request = pool.request();
+        
+        // Critical stock threshold (default 20)
+        const threshold = parseInt(req.query.threshold) || 20;
+        request.input('threshold', threshold);
+        
+        const query = `
+            SELECT TOP 50
+                InvWarehouse.StockCode, 
+                InvMaster.Description, 
+                InvWarehouse.Warehouse,
+                FLOOR(ABS(InvWarehouse.QtyOnHand)) AS OnHandCS, 
+                ISNULL(FLOOR(ROUND((ABS(InvWarehouse.QtyOnHand) - CAST(FLOOR(ABS(InvWarehouse.QtyOnHand)) AS decimal(15, 2))) * CAST(InvMaster.ConvFactAltUom AS decimal(10, 2)), 0)), 0) AS OnHandPcs,
+                FLOOR(ABS(InvWarehouse.QtyOnHand - InvWarehouse.QtyAllocated + InvWarehouse.QtyOnBackOrder)) AS StockFreeCS, 
+                ISNULL(FLOOR(ROUND((ABS(InvWarehouse.QtyOnHand - InvWarehouse.QtyAllocated + InvWarehouse.QtyOnBackOrder) - CAST(FLOOR(ABS(InvWarehouse.QtyOnHand - InvWarehouse.QtyAllocated + InvWarehouse.QtyOnBackOrder)) AS decimal(15, 2))) * CAST(InvMaster.ConvFactAltUom AS decimal(10, 2)), 0)), 0) AS StockFreePCS,
+                Case
+                    -- No Stock: 0 CS and 0 PCS
+                    When FLOOR(ABS(InvWarehouse.QtyOnHand)) = 0 
+                        AND ISNULL(FLOOR(ROUND((ABS(InvWarehouse.QtyOnHand) - CAST(FLOOR(ABS(InvWarehouse.QtyOnHand)) AS decimal(15, 2))) * CAST(InvMaster.ConvFactAltUom AS decimal(10, 2)), 0)), 0) = 0 
+                        THEN 'No Stock'
+                    -- Critical: 0 CS and > 0 PCS
+                    When FLOOR(ABS(InvWarehouse.QtyOnHand)) = 0 
+                        AND ISNULL(FLOOR(ROUND((ABS(InvWarehouse.QtyOnHand) - CAST(FLOOR(ABS(InvWarehouse.QtyOnHand)) AS decimal(15, 2))) * CAST(InvMaster.ConvFactAltUom AS decimal(10, 2)), 0)), 0) > 0 
+                        THEN 'Critical'
+                    -- Low: 5 <= OnHand CS <= 10
+                    When FLOOR(ABS(InvWarehouse.QtyOnHand)) BETWEEN 5 AND 10 THEN 'Low'
+                    -- Warning: OnHand CS > 10 and <= threshold
+                    When FLOOR(ABS(InvWarehouse.QtyOnHand)) > 10 
+                        AND FLOOR(ABS(InvWarehouse.QtyOnHand)) <= @threshold THEN 'Warning'
+                    Else 'Normal'
+                End As StockStatus
+            FROM InvWarehouse 
+            INNER JOIN InvMaster ON InvWarehouse.StockCode = InvMaster.StockCode
+            INNER JOIN InvPrice ON InvWarehouse.StockCode = InvPrice.StockCode
+            WHERE (InvWarehouse.QtyOnHand <> 0)
+                AND InvMaster.ProductClass not like 'TS'
+                AND InvPrice.PriceCode = '1'
+                AND InvWarehouse.Warehouse = 'M1'
+                AND FLOOR(ABS(InvWarehouse.QtyOnHand)) <= @threshold
+            Order by 
+                Case 
+                    When FLOOR(ABS(InvWarehouse.QtyOnHand)) = 0 
+                        AND ISNULL(FLOOR(ROUND((ABS(InvWarehouse.QtyOnHand) - CAST(FLOOR(ABS(InvWarehouse.QtyOnHand)) AS decimal(15, 2))) * CAST(InvMaster.ConvFactAltUom AS decimal(10, 2)), 0)), 0) = 0 
+                        THEN 1
+                    When FLOOR(ABS(InvWarehouse.QtyOnHand)) = 0 
+                        AND ISNULL(FLOOR(ROUND((ABS(InvWarehouse.QtyOnHand) - CAST(FLOOR(ABS(InvWarehouse.QtyOnHand)) AS decimal(15, 2))) * CAST(InvMaster.ConvFactAltUom AS decimal(10, 2)), 0)), 0) > 0 
+                        THEN 2
+                    When FLOOR(ABS(InvWarehouse.QtyOnHand)) BETWEEN 5 AND 10 THEN 3
+                    When FLOOR(ABS(InvWarehouse.QtyOnHand)) > 10 THEN 4
+                    Else 5
+                END ASC,
+                FLOOR(ABS(InvWarehouse.QtyOnHand)) ASC
+        `;
+        
+        const result = await request.query(query);
+        res.json({
+            data: result.recordset ?? [],
+            total: result.recordset?.length || 0
+        });
+    } catch (err) {
+        console.error('Critical Stock query failed:', err);
+        res.status(500).send('Database Server Error');
+    }
+});
+
 module.exports = router;
