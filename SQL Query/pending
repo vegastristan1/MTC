@@ -1,0 +1,6 @@
+ Select SUM(SorAdditions.LineValue * 1.12) as totalValueWithTax
+            from SorMaster
+            Right Join SorAdditions on SorAdditions.SalesOrder = SorMaster.SalesOrder
+            where SorMaster.OrderStatus in ('8', '0') and OrderDate between @startDate and @endDate
+            and SorMaster.OrderType = 'B' and SorMaster.DocumentType = 'B'
+            and SorAdditions.LineValue > 0 and SorMaster.Salesperson in ('F01', 'F03', 'F04', 'N01', 'N02', 'N03', 'N05', 'N06', 'N07', 'N08', 'N12', 'N14', 'N75')

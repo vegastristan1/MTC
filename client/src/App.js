@@ -56,12 +56,21 @@ const mainContentStyle = {
 
 // Dashboard Page Component
 const DashboardPage = () => {
-  const [stats] = useState([
+  const [stats, setStats] = useState([
     { label: 'Total Sales', value: '$124,500', change: '+12.5%', positive: true },
     { label: 'Orders Today', value: '48', change: '+5.2%', positive: true },
-    { label: 'Pending', value: '12', change: '-3.1%', positive: false },
+    { label: 'Pending', value: 'Loading...', change: 'Loading...', positive: false },
     { label: 'MR Stock Items', value: '156', change: '+8.3%', positive: true },
   ]);
+  const [pendingLoading, setPendingLoading] = useState(true);
+  
+  // Modal states
+  const [showPendingModal, setShowPendingModal] = useState(false);
+  const [pendingList, setPendingList] = useState([]);
+  const [pendingListLoading, setPendingListLoading] = useState(false);
+  const [selectedOrder, setSelectedOrder] = useState(null);
+  const [orderDetails, setOrderDetails] = useState(null);
+  const [orderDetailsLoading, setOrderDetailsLoading] = useState(false);
 
   const [chartData] = useState([
     { month: 'Jan', sales: 45000, orders: 120 },
@@ -93,6 +102,72 @@ const DashboardPage = () => {
       .finally(() => setCriticalLoading(false));
   }, [warehouseFilter]);
 
+  // Fetch pending total ValueWithTax for current month
+  useEffect(() => {
+    setPendingLoading(true);
+    axios.get('/api/pending')
+      .then((res) => {
+        const totalValue = res.data.totalValueWithTax || 0;
+        const formattedValue = new Intl.NumberFormat('en-PH', { 
+          style: 'currency', 
+          currency: 'PHP',
+          minimumFractionDigits: 2,
+          maximumFractionDigits: 2
+        }).format(totalValue);
+        setStats(prevStats => prevStats.map(stat => 
+          stat.label === 'Pending' ? { ...stat, value: formattedValue } : stat
+        ));
+      })
+      .catch((err) => {
+        console.error('Error fetching pending:', err);
+        setStats(prevStats => prevStats.map(stat => 
+          stat.label === 'Pending' ? { ...stat, value: '₱0.00' } : stat
+        ));
+      })
+      .finally(() => setPendingLoading(false));
+  }, []);
+
+  // Fetch pending list for modal
+  const fetchPendingList = () => {
+    setShowPendingModal(true);
+    setPendingListLoading(true);
+    setSelectedOrder(null);
+    setOrderDetails(null);
+    
+    axios.get('/api/pending/list')
+      .then((res) => {
+        setPendingList(res.data.data || []);
+      })
+      .catch((err) => {
+        console.error('Error fetching pending list:', err);
+        setPendingList([]);
+      })
+      .finally(() => setPendingListLoading(false));
+  };
+
+  // Fetch order details
+  const fetchOrderDetails = (salesOrder) => {
+    setSelectedOrder(salesOrder);
+    setOrderDetailsLoading(true);
+    
+    axios.get(`/api/pending/details/${salesOrder}`)
+      .then((res) => {
+        setOrderDetails(res.data);
+      })
+      .catch((err) => {
+        console.error('Error fetching order details:', err);
+        setOrderDetails(null);
+      })
+      .finally(() => setOrderDetailsLoading(false));
+  };
+
+  // Close modal
+  const closeModal = () => {
+    setShowPendingModal(false);
+    setSelectedOrder(null);
+    setOrderDetails(null);
+  };
+
   // Get status badge style
   const getStatusBadge = (status) => {
     const styles = {
@@ -122,21 +197,42 @@ const DashboardPage = () => {
       {/* Stats Cards */}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '20px', marginBottom: '30px' }}>
         {stats.map((stat, index) => (
-          <div key={index} style={{
-            backgroundColor: '#fff',
-            borderRadius: '12px',
-            padding: '24px',
-            boxShadow: '0 2px 8px rgba(0,0,0,0.08)',
-            transition: 'transform 0.2s ease',
-          }}>
-            <p style={{ color: '#888', margin: '0 0 8px 0', fontSize: '14px' }}>{stat.label}</p>
-            <h3 style={{ margin: '0 0 8px 0', fontSize: '28px', color: '#333' }}>{stat.value}</h3>
+          <div key={index} 
+            onClick={() => stat.label === 'Pending' && fetchPendingList()}
+            style={{
+              backgroundColor: '#fff',
+              borderRadius: '12px',
+              padding: '24px',
+              boxShadow: stat.label === 'Pending' ? '0 4px 12px rgba(0,0,0,0.15)' : '0 2px 8px rgba(0,0,0,0.08)',
+              transition: 'transform 0.2s ease, box-shadow 0.2s ease',
+              cursor: stat.label === 'Pending' ? 'pointer' : 'default',
+            }}
+            onMouseEnter={(e) => {
+              if (stat.label === 'Pending') {
+                e.currentTarget.style.transform = 'translateY(-4px)';
+              }
+            }}
+            onMouseLeave={(e) => {
+              e.currentTarget.style.transform = 'translateY(0)';
+            }}
+          >
+            <p style={{ color: '#888', margin: '0 0 8px 0', fontSize: '14px' }}>
+              {stat.label}
+              {stat.label === 'Pending' && ' 📋'}
+            </p>
+            <h3 style={{ margin: '0 0 8px 0', fontSize: '28px', color: '#333' }}>
+              {stat.label === 'Pending' && pendingLoading ? (
+                <span style={{ fontSize: '16px', color: '#888' }}>Loading...</span>
+              ) : (
+                stat.value
+              )}
+            </h3>
             <span style={{
               color: stat.positive ? '#28a745' : '#dc3545',
               fontSize: '13px',
               fontWeight: '500',
             }}>
-              {stat.change} from last month
+              {stat.label === 'Pending' ? 'Click to view details' : `${stat.change} from last month`}
             </span>
           </div>
         ))}
@@ -397,6 +493,197 @@ const DashboardPage = () => {
           )}
         </div>
       </div>
+
+      {/* Pending Modal */}
+      {showPendingModal && (
+        <div style={{
+          position: 'fixed',
+          top: 0,
+          left: 0,
+          right: 0,
+          bottom: 0,
+          backgroundColor: 'rgba(0,0,0,0.5)',
+          display: 'flex',
+          justifyContent: 'center',
+          alignItems: 'center',
+          zIndex: 1000,
+        }}>
+          <div style={{
+            backgroundColor: '#fff',
+            borderRadius: '12px',
+            width: '90%',
+            maxWidth: '1000px',
+            maxHeight: '90vh',
+            overflow: 'hidden',
+            display: 'flex',
+            flexDirection: 'column',
+          }}>
+            {/* Modal Header */}
+            <div style={{
+              padding: '20px 24px',
+              borderBottom: '1px solid #e9ecef',
+              display: 'flex',
+              justifyContent: 'space-between',
+              alignItems: 'center',
+            }}>
+              <h2 style={{ margin: 0, color: '#333' }}>
+                {selectedOrder ? `Sales Order Details: ${selectedOrder}` : 'Pending Sales Orders - This Month'}
+              </h2>
+              <button 
+                onClick={closeModal}
+                style={{
+                  background: 'none',
+                  border: 'none',
+                  fontSize: '24px',
+                  cursor: 'pointer',
+                  color: '#888',
+                }}
+              >
+                ×
+              </button>
+            </div>
+            
+            {/* Modal Body */}
+            <div style={{ padding: '24px', overflow: 'auto', flex: 1 }}>
+              {selectedOrder ? (
+                // Order Details View
+                orderDetailsLoading ? (
+                  <p style={{ textAlign: 'center', color: '#888', padding: '40px' }}>Loading order details...</p>
+                ) : orderDetails ? (
+                  <div>
+                    <button 
+                      onClick={() => setSelectedOrder(null)}
+                      style={{
+                        marginBottom: '16px',
+                        padding: '8px 16px',
+                        backgroundColor: '#6c757d',
+                        color: '#fff',
+                        border: 'none',
+                        borderRadius: '6px',
+                        cursor: 'pointer',
+                      }}
+                    >
+                      ← Back to List
+                    </button>
+                    
+                    {/* Order Header Info */}
+                    <div style={{ 
+                      backgroundColor: '#f8f9fa', 
+                      padding: '16px', 
+                      borderRadius: '8px',
+                      marginBottom: '20px',
+                      display: 'grid',
+                      gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))',
+                      gap: '12px',
+                    }}>
+                      <div><strong>Customer:</strong> {orderDetails.header?.Customer}</div>
+                      <div><strong>Customer Name:</strong> {orderDetails.header?.CustomerName}</div>
+                      <div><strong>Order Date:</strong> {orderDetails.header?.OrderDate}</div>
+                      <div><strong>Req Ship Date:</strong> {orderDetails.header?.ReqShipDate}</div>
+                      <div><strong>Salesperson:</strong> {orderDetails.header?.Salesperson}</div>
+                      <div><strong>Warehouse:</strong> {orderDetails.header?.Warehouse}</div>
+                    </div>
+                    
+                    {/* Line Items Table */}
+                    <h3 style={{ marginBottom: '12px', color: '#333' }}>Line Items</h3>
+                    <div style={{ overflowX: 'auto' }}>
+                      <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+                        <thead>
+                          <tr style={{ borderBottom: '2px solid #e9ecef' }}>
+                            <th style={{ padding: '12px', textAlign: 'left' }}>Stock Code</th>
+                            <th style={{ padding: '12px', textAlign: 'left' }}>Description</th>
+                            <th style={{ padding: '12px', textAlign: 'right' }}>Qty</th>
+                            <th style={{ padding: '12px', textAlign: 'right' }}>Unit Price</th>
+                            <th style={{ padding: '12px', textAlign: 'right' }}>Line Value</th>
+                            <th style={{ padding: '12px', textAlign: 'right' }}>Value With Tax</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {orderDetails.lineItems.map((item, idx) => (
+                            <tr key={idx} style={{ borderBottom: '1px solid #e9ecef' }}>
+                              <td style={{ padding: '12px' }}>{item.StockCode}</td>
+                              <td style={{ padding: '12px', maxWidth: '300px' }}>{item.Description}</td>
+                              <td style={{ padding: '12px', textAlign: 'right' }}>{item.OrderQty}</td>
+                              <td style={{ padding: '12px', textAlign: 'right' }}>{parseFloat(item.UnitPrice || 0).toFixed(2)}</td>
+                              <td style={{ padding: '12px', textAlign: 'right' }}>{parseFloat(item.LineValue || 0).toFixed(2)}</td>
+                              <td style={{ padding: '12px', textAlign: 'right', fontWeight: 'bold', color: '#28a745' }}>
+                                {parseFloat(item.ValueWithTax || 0).toFixed(2)}
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+                ) : (
+                  <p style={{ color: '#dc3545', textAlign: 'center' }}>No order details found</p>
+                )
+              ) : (
+                // Pending List View
+                pendingListLoading ? (
+                  <p style={{ textAlign: 'center', color: '#888', padding: '40px' }}>Loading pending orders...</p>
+                ) : pendingList.length === 0 ? (
+                  <p style={{ textAlign: 'center', color: '#28a745', padding: '40px', fontWeight: '500' }}>✅ No pending orders for this month!</p>
+                ) : (
+                  <div style={{ overflowX: 'auto' }}>
+                    <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+                      <thead>
+                        <tr style={{ borderBottom: '2px solid #e9ecef' }}>
+                          <th style={{ padding: '12px', textAlign: 'left' }}>Sales Order</th>
+                          <th style={{ padding: '12px', textAlign: 'left' }}>Customer</th>
+                          <th style={{ padding: '12px', textAlign: 'left' }}>Customer Name</th>
+                          <th style={{ padding: '12px', textAlign: 'left' }}>Order Date</th>
+                          <th style={{ padding: '12px', textAlign: 'left' }}>Status</th>
+                          <th style={{ padding: '12px', textAlign: 'left' }}>Salesperson</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {pendingList.map((order, idx) => (
+                          <tr 
+                            key={idx} 
+                            style={{ 
+                              borderBottom: '1px solid #e9ecef',
+                              cursor: 'pointer',
+                              backgroundColor: idx % 2 === 0 ? '#fff' : '#f8f9fa',
+                            }}
+                            onClick={() => fetchOrderDetails(order.SalesOrder)}
+                            onMouseEnter={(e) => {
+                              e.currentTarget.style.backgroundColor = '#e9ecef';
+                            }}
+                            onMouseLeave={(e) => {
+                              e.currentTarget.style.backgroundColor = idx % 2 === 0 ? '#fff' : '#f8f9fa';
+                            }}
+                          >
+                            <td style={{ padding: '12px', color: '#007bff', fontWeight: '500' }}>{order.SalesOrder}</td>
+                            <td style={{ padding: '12px' }}>{order.Customer}</td>
+                            <td style={{ padding: '12px', maxWidth: '200px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                              {order.CustomerName}
+                            </td>
+                            <td style={{ padding: '12px' }}>{order.OrderDate}</td>
+                            <td style={{ padding: '12px' }}>
+                              <span style={{
+                                padding: '4px 8px',
+                                borderRadius: '4px',
+                                fontSize: '12px',
+                                fontWeight: '500',
+                                backgroundColor: order.OrderStatus === '8' ? '#28a745' : '#fd7e14',
+                                color: '#fff',
+                              }}>
+                                {order.OrderStatus === '8' ? 'Open' : 'Pending'}
+                              </span>
+                            </td>
+                            <td style={{ padding: '12px' }}>{order.Salesperson}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                )
+              )}
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

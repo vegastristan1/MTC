@@ -1,0 +1,13 @@
+SELECT SalesOrder, OrderStatus, DocumentType, Customer, Salesperson, CustomerPoNumber, CustomerName, OrderDate, ReqShipDate, Branch, Warehouse, LastOperator
+FROM SorMaster sm
+WHERE sm.OrderStatus IN ('8', '0')
+  AND sm.OrderDate BETWEEN '2026-01-01' AND '2026-01-31'
+  AND sm.OrderType = 'B'
+  AND sm.DocumentType = 'B'
+  AND sm.Salesperson IN ('F01','F03','F04','N01','N02','N03','N05','N06','N07','N08','N12','N14','N75')
+  AND EXISTS (
+        SELECT 1
+        FROM SorAdditions sa
+        WHERE sa.SalesOrder = sm.SalesOrder
+          AND sa.LineValue > 0
+  );
