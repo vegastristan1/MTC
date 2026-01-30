@@ -15,6 +15,7 @@ router.get('/', async (req, res) => {
         // Get date parameters from query, format as YYYY-MM-DD
         let startDate = null;
         let endDate = null;
+        let searchTerm = req.query.search || null;
         
         if (req.query.from) {
             // Validate and format the date
@@ -45,8 +46,9 @@ router.get('/', async (req, res) => {
         const pageSize = parseInt(req.query.pageSize) || 30;
         const offset = (page - 1) * pageSize;
 
-        // Build WHERE clauses for dates
+        // Build WHERE clauses for dates and search
         const dateConditions = [];
+        const searchConditions = [];
         
         if (startDate) {
             request.input('startDate', startDate);
@@ -57,7 +59,15 @@ router.get('/', async (req, res) => {
             request.input('endDate', endDate);
             dateConditions.push("imv.EntryDate <= @endDate");
         }
-
+        
+        if (searchTerm) {
+            request.input('searchTerm', `%${searchTerm}%`);
+            searchConditions.push("(sa.StockCode LIKE @searchTerm OR ats.Operator LIKE @searchTerm)");
+        }
+        
+        // Combine all conditions
+        const whereConditions = [...dateConditions, ...searchConditions];
+        
         // Count total records
         const countQuery = `
             SELECT COUNT(*) as total
@@ -73,7 +83,7 @@ router.get('/', async (req, res) => {
                 imv.Warehouse = 'MR'
                 AND imv.TrnQty < 0
                 AND sa.StockCode IS NOT NULL
-                ${dateConditions.length > 0 ? 'AND ' + dateConditions.join(' AND ') : ''}
+                ${whereConditions.length > 0 ? 'AND ' + whereConditions.join(' AND ') : ''}
         `;
         
         const countResult = await request.query(countQuery);
@@ -118,7 +128,7 @@ router.get('/', async (req, res) => {
                 imv.Warehouse = 'MR'
                 AND imv.TrnQty < 0
                 AND sa.StockCode IS NOT NULL
-                ${dateConditions.length > 0 ? 'AND ' + dateConditions.join(' AND ') : ''}
+                ${whereConditions.length > 0 ? 'AND ' + whereConditions.join(' AND ') : ''}
             Order by Invoice asc
             OFFSET @offset ROWS
             FETCH NEXT @pageSize ROWS ONLY

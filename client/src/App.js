@@ -207,6 +207,7 @@ const MRCheckerPage = () => {
   const [totalRecords, setTotalRecords] = useState(0);
   const [fromDate, setFromDate] = useState('2026-01-01');
   const [toDate, setToDate] = useState('2026-01-12');
+  const [searchTerm, setSearchTerm] = useState('');
   const [selectedItem, setSelectedItem] = useState(null);
   const [isMobile, setIsMobile] = useState(window.innerWidth < 768);
 
@@ -257,6 +258,7 @@ const MRCheckerPage = () => {
     const params = new URLSearchParams();
     if (fromDate) params.append('from', fromDate);
     if (toDate) params.append('to', toDate);
+    if (searchTerm) params.append('search', searchTerm);
     params.append('page', page);
     params.append('pageSize', pageSize);
     
@@ -339,6 +341,30 @@ const MRCheckerPage = () => {
               style={{ padding: '8px 12px', borderRadius: '6px', border: '1px solid #ddd' }}
             />
           </div>
+          <div>
+            <input
+              type="text"
+              placeholder="Search Stock Code or Operator..."
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              onKeyPress={(e) => e.key === 'Enter' && fetchData(1)}
+              style={{ padding: '8px 12px', borderRadius: '6px', border: '1px solid #ddd', width: '180px' }}
+            />
+          </div>
+          <button
+            onClick={() => fetchData(1)}
+            style={{
+              padding: '10px 24px',
+              backgroundColor: '#6c5ce7',
+              color: '#fff',
+              border: 'none',
+              borderRadius: '6px',
+              cursor: 'pointer',
+              fontWeight: '600',
+            }}
+          >
+            Search
+          </button>
           <button
             onClick={fetchData}
             style={{
