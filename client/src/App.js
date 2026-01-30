@@ -20,7 +20,7 @@ const TruckDeliveryLoading = ({ onComplete }) => {
     
     const completeTimer = setTimeout(() => {
       onComplete();
-    }, 7000); // Complete at 7 seconds
+    }, 15000); // Complete at 7 seconds
     
     return () => {
       clearTimeout(dropTimer);
@@ -50,6 +50,7 @@ const TruckDeliveryLoading = ({ onComplete }) => {
         borderRadius: '3px',
         marginBottom: '40px',
         overflow: 'hidden',
+        visibility: 'hidden',
       }}>
         <div style={{
           width: '100%',
@@ -110,8 +111,7 @@ const TruckDeliveryLoading = ({ onComplete }) => {
               right: '185px',
               width: '50px',
               height: 'auto',
-              // animation: 'package-drop 0.5s ease-out forwards',
-              animation: 'truck-drive 7s ease-in-out forwards',
+              animation: 'package-drop 0.5s ease-out forwards',
             }}
           />
         )}
