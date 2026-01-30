@@ -11,11 +11,21 @@ import {
 
 // Truck Delivery Loading Animation Component
 const TruckDeliveryLoading = ({ onComplete }) => {
+  const [packageDropped, setPackageDropped] = useState(false);
+  
   useEffect(() => {
-    const timer = setTimeout(() => {
+    const dropTimer = setTimeout(() => {
+      setPackageDropped(true);
+    }, 5500); // Drop package at 5.5 seconds
+    
+    const completeTimer = setTimeout(() => {
       onComplete();
-    }, 7000); // 7 seconds
-    return () => clearTimeout(timer);
+    }, 7000); // Complete at 7 seconds
+    
+    return () => {
+      clearTimeout(dropTimer);
+      clearTimeout(completeTimer);
+    };
   }, [onComplete]);
 
   return (
@@ -51,201 +61,59 @@ const TruckDeliveryLoading = ({ onComplete }) => {
       </div>
 
       {/* Animation Container */}
-      <div style={{ position: 'relative', width: '500px', height: '200px' }}>
-        {/* Road */}
+      <div style={{ position: 'relative', width: '500px', height: '250px' }}>
+        {/* Ground */}
         <div style={{
           position: 'absolute',
           bottom: '20px',
           left: '0',
           right: '0',
-          height: '8px',
-          backgroundColor: '#444',
-        }}>
-          {/* Road markings */}
-          <div style={{
+          height: '4px',
+          backgroundColor: '#666',
+        }} />
+
+        {/* Warehouse Image */}
+        <img 
+          src="/image/warehouse.png" 
+          alt="Warehouse"
+          style={{
             position: 'absolute',
-            top: '0',
+            right: '20px',
+            bottom: '24px',
+            width: '150px',
+            height: 'auto',
+          }}
+        />
+
+        {/* Truck Image */}
+        <img 
+          src="/image/truck.png" 
+          alt="Truck"
+          style={{
+            position: 'absolute',
+            bottom: '-10px',
             left: '0',
-            right: '0',
-            height: '4px',
-            background: 'repeating-linear-gradient(90deg, #fff 0px, #fff 30px, transparent 30px, transparent 60px)',
-            animation: 'road-move 0.5s linear infinite',
-          }} />
-        </div>
+            width: '150px',
+            height: 'auto',
+            animation: 'truck-drive 7s ease-in-out forwards',
+          }}
+        />
 
-        {/* Warehouse */}
-        <div style={{
-          position: 'absolute',
-          right: '30px',
-          bottom: '28px',
-          width: '120px',
-          height: '100px',
-          backgroundColor: '#2d3748',
-          borderRadius: '4px 4px 0 0',
-        }}>
-          {/* Warehouse roof */}
-          <div style={{
-            position: 'absolute',
-            top: '-30px',
-            left: '-10px',
-            width: '140px',
-            height: '30px',
-            backgroundColor: '#4a5568',
-            clipPath: 'polygon(0% 100%, 50% 0%, 100% 100%)',
-          }} />
-          {/* Warehouse door */}
-          <div style={{
-            position: 'absolute',
-            bottom: '0',
-            left: '50%',
-            transform: 'translateX(-50%)',
-            width: '50px',
-            height: '60px',
-            backgroundColor: '#1a202c',
-            borderRadius: '4px 4px 0 0',
-          }} />
-          {/* Windows */}
-          <div style={{
-            position: 'absolute',
-            top: '15px',
-            left: '10px',
-            width: '20px',
-            height: '15px',
-            backgroundColor: '#ffd700',
-            opacity: '0.8',
-          }} />
-          <div style={{
-            position: 'absolute',
-            top: '15px',
-            right: '10px',
-            width: '20px',
-            height: '15px',
-            backgroundColor: '#ffd700',
-            opacity: '0.8',
-          }} />
-        </div>
-
-        {/* Truck */}
-        <div style={{
-          position: 'absolute',
-          bottom: '28px',
-          left: '0',
-          animation: 'truck-drive 7s ease-in-out forwards',
-        }}>
-          {/* Truck cab */}
-          <div style={{
-            position: 'absolute',
-            left: '0',
-            bottom: '0',
-            width: '60px',
-            height: '50px',
-            backgroundColor: '#e53e3e',
-            borderRadius: '4px 4px 0 0',
-          }}>
-            {/* Windshield */}
-            <div style={{
+        {/* Package - Only shown after delivery */}
+        {packageDropped && (
+          <img 
+            src="/image/boxes.png" 
+            alt="Package"
+            style={{
               position: 'absolute',
-              top: '8px',
-              right: '5px',
-              width: '25px',
-              height: '20px',
-              backgroundColor: '#90cdf4',
-              borderRadius: '2px',
-            }} />
-            {/* Window */}
-            <div style={{
-              position: 'absolute',
-              top: '8px',
-              left: '8px',
-              width: '15px',
-              height: '15px',
-              backgroundColor: '#90cdf4',
-              borderRadius: '2px',
-            }} />
-          </div>
-
-          {/* Truck container */}
-          <div style={{
-            position: 'absolute',
-            left: '55px',
-            bottom: '0',
-            width: '90px',
-            height: '55px',
-            backgroundColor: '#e53e3e',
-            borderRadius: '2px',
-          }}>
-            {/* Box on truck */}
-            <div style={{
-              position: 'absolute',
-              top: '10px',
-              left: '50%',
-              transform: 'translateX(-50%)',
+              bottom: '24px',
+              right: '185px',
               width: '50px',
-              height: '40px',
-              backgroundColor: '#d69e2e',
-              border: '3px solid #b7791f',
-              borderRadius: '2px',
-            }}>
-              {/* Box tape */}
-              <div style={{
-                position: 'absolute',
-                top: '0',
-                left: '50%',
-                transform: 'translateX(-50%)',
-                width: '10px',
-                height: '100%',
-                backgroundColor: '#f6e05e',
-              }} />
-              {/* Box label */}
-              <div style={{
-                position: 'absolute',
-                top: '50%',
-                left: '50%',
-                transform: 'translate(-50%, -50%)',
-                fontSize: '10px',
-                color: '#744210',
-                fontWeight: 'bold',
-              }}>
-                📦
-              </div>
-            </div>
-          </div>
-
-          {/* Wheels */}
-          <div style={{
-            position: 'absolute',
-            bottom: '-8px',
-            left: '15px',
-            width: '18px',
-            height: '18px',
-            backgroundColor: '#2d3748',
-            borderRadius: '50%',
-            border: '3px solid #718096',
-            animation: 'wheel-spin 0.3s linear infinite',
-          }} />
-          <div style={{
-            position: 'absolute',
-            bottom: '-8px',
-            left: '80px',
-            width: '18px',
-            height: '18px',
-            backgroundColor: '#2d3748',
-            borderRadius: '50%',
-            border: '3px solid #718096',
-            animation: 'wheel-spin 0.3s linear infinite',
-          }} />
-          <div style={{
-            position: 'absolute',
-            bottom: '-8px',
-            right: '15px',
-            width: '18px',
-            height: '18px',
-            backgroundColor: '#2d3748',
-            borderRadius: '50%',
-            border: '3px solid #718096',
-            animation: 'wheel-spin 0.3s linear infinite',
-          }} />
-        </div>
+              height: 'auto',
+              animation: 'package-drop 0.5s ease-out forwards',
+            }}
+          />
+        )}
 
         {/* Delivery text */}
         <div style={{
@@ -258,13 +126,13 @@ const TruckDeliveryLoading = ({ onComplete }) => {
           fontWeight: 'bold',
           textAlign: 'center',
         }}>
-          <div style={{ marginBottom: '10px' }}>🚚 Delivering Your Data</div>
+          <div style={{ marginBottom: '10px' }}>🚚 Delivering Your Package</div>
           <div style={{ 
             fontSize: '16px', 
             color: '#00d9ff',
             animation: 'pulse 1s ease-in-out infinite',
           }}>
-            Please wait...
+            {packageDropped ? 'Package Delivered!' : 'Please wait...'}
           </div>
         </div>
       </div>
@@ -273,19 +141,24 @@ const TruckDeliveryLoading = ({ onComplete }) => {
       <style>
         {`
           @keyframes truck-drive {
-            0% { left: -200px; }
-            60% { left: calc(500px - 280px); }
-            75% { left: calc(500px - 280px); }
-            90% { left: calc(500px - 180px); }
-            100% { left: calc(500px - 150px); }
+            0% { left: -150px; }
+            70% { left: calc(500px - 280px); }
+            80% { left: calc(500px - 280px); }
+            100% { left: calc(500px - 200px); }
           }
-          @keyframes wheel-spin {
-            0% { transform: rotate(0deg); }
-            100% { transform: rotate(360deg); }
-          }
-          @keyframes road-move {
-            0% { transform: translateX(0); }
-            100% { transform: translateX(-60px); }
+          @keyframes package-drop {
+            0% { 
+              transform: translateY(0);
+              opacity: 1;
+            }
+            50% { 
+              transform: translateY(-40px);
+              opacity: 0.8;
+            }
+            100% { 
+              transform: translateY(0);
+              opacity: 1;
+            }
           }
           @keyframes loading-progress {
             0% { width: 0%; }
