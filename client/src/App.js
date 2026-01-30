@@ -110,7 +110,8 @@ const TruckDeliveryLoading = ({ onComplete }) => {
               right: '185px',
               width: '50px',
               height: 'auto',
-              animation: 'package-drop 0.5s ease-out forwards',
+              // animation: 'package-drop 0.5s ease-out forwards',
+              animation: 'truck-drive 7s ease-in-out forwards',
             }}
           />
         )}
