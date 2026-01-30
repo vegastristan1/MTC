@@ -134,7 +134,9 @@ router.get('/critical', async (req, res) => {
         
         // Critical stock threshold (default 20)
         const threshold = parseInt(req.query.threshold) || 20;
+        const warehouse = req.query.warehouse || 'M1';
         request.input('threshold', threshold);
+        request.input('warehouse', warehouse);
         
         const query = `
             SELECT TOP 50
@@ -154,11 +156,10 @@ router.get('/critical', async (req, res) => {
                     When FLOOR(ABS(InvWarehouse.QtyOnHand)) = 0 
                         AND ISNULL(FLOOR(ROUND((ABS(InvWarehouse.QtyOnHand) - CAST(FLOOR(ABS(InvWarehouse.QtyOnHand)) AS decimal(15, 2))) * CAST(InvMaster.ConvFactAltUom AS decimal(10, 2)), 0)), 0) > 0 
                         THEN 'Critical'
-                    -- Low: 5 <= OnHand CS <= 10
-                    When FLOOR(ABS(InvWarehouse.QtyOnHand)) BETWEEN 5 AND 10 THEN 'Low'
-                    -- Warning: OnHand CS > 10 and <= threshold
-                    When FLOOR(ABS(InvWarehouse.QtyOnHand)) > 10 
-                        AND FLOOR(ABS(InvWarehouse.QtyOnHand)) <= @threshold THEN 'Warning'
+                    -- Low: 1-4 CS
+                    When FLOOR(ABS(InvWarehouse.QtyOnHand)) BETWEEN 1 AND 4 THEN 'Low'
+                    -- Warning: 5-20 CS
+                    When FLOOR(ABS(InvWarehouse.QtyOnHand)) BETWEEN 5 AND @threshold THEN 'Warning'
                     Else 'Normal'
                 End As StockStatus
             FROM InvWarehouse 
@@ -167,7 +168,7 @@ router.get('/critical', async (req, res) => {
             WHERE (InvWarehouse.QtyOnHand <> 0)
                 AND InvMaster.ProductClass not like 'TS'
                 AND InvPrice.PriceCode = '1'
-                AND InvWarehouse.Warehouse = 'M1'
+                AND InvWarehouse.Warehouse = @warehouse
                 AND FLOOR(ABS(InvWarehouse.QtyOnHand)) <= @threshold
             Order by 
                 Case 
@@ -177,8 +178,8 @@ router.get('/critical', async (req, res) => {
                     When FLOOR(ABS(InvWarehouse.QtyOnHand)) = 0 
                         AND ISNULL(FLOOR(ROUND((ABS(InvWarehouse.QtyOnHand) - CAST(FLOOR(ABS(InvWarehouse.QtyOnHand)) AS decimal(15, 2))) * CAST(InvMaster.ConvFactAltUom AS decimal(10, 2)), 0)), 0) > 0 
                         THEN 2
-                    When FLOOR(ABS(InvWarehouse.QtyOnHand)) BETWEEN 5 AND 10 THEN 3
-                    When FLOOR(ABS(InvWarehouse.QtyOnHand)) > 10 THEN 4
+                    When FLOOR(ABS(InvWarehouse.QtyOnHand)) BETWEEN 1 AND 4 THEN 3
+                    When FLOOR(ABS(InvWarehouse.QtyOnHand)) BETWEEN 5 AND @threshold THEN 4
                     Else 5
                 END ASC,
                 FLOOR(ABS(InvWarehouse.QtyOnHand)) ASC

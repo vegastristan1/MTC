@@ -75,12 +75,14 @@ const DashboardPage = () => {
   const [criticalStock, setCriticalStock] = useState([]);
   const [criticalLoading, setCriticalLoading] = useState(true);
   const [statusFilter, setStatusFilter] = useState('All');
+  const [warehouseFilter, setWarehouseFilter] = useState('M1');
 
   const maxSales = Math.max(...chartData.map(d => d.sales));
 
   // Fetch critical stock data
   useEffect(() => {
-    axios.get('/api/allStockCheckerInventory/critical')
+    setCriticalLoading(true);
+    axios.get(`/api/allStockCheckerInventory/critical?warehouse=${warehouseFilter}`)
       .then((res) => {
         console.log('Critical stock data:', res.data);
         setCriticalStock(res.data.data || []);
@@ -89,7 +91,7 @@ const DashboardPage = () => {
         console.error('Error fetching critical stock:', err);
       })
       .finally(() => setCriticalLoading(false));
-  }, []);
+  }, [warehouseFilter]);
 
   // Get status badge style
   const getStatusBadge = (status) => {
@@ -240,8 +242,27 @@ const DashboardPage = () => {
           marginTop: '20px',
           gridColumn: 'span 2',
         }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
-            <h3 style={{ margin: '0', color: '#333' }}>🔴 Critical Stock Alert</h3>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px', flexWrap: 'wrap', gap: '12px' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+              <h3 style={{ margin: '0', color: '#333' }}>🔴 Critical Stock Alert</h3>
+              <select
+                value={warehouseFilter}
+                onChange={(e) => {
+                  console.log('Warehouse changed to:', e.target.value);
+                  setWarehouseFilter(e.target.value);
+                }}
+                style={{ 
+                  padding: '6px 12px', 
+                  borderRadius: '6px', 
+                  border: '1px solid #ddd',
+                  fontSize: '13px',
+                  cursor: 'pointer',
+                }}
+              >
+                <option value="M1">M1 - Main Warehouse</option>
+                <option value="M2">M2 - Daet Warehouse</option>
+              </select>
+            </div>
             <div style={{ display: 'flex', gap: '12px', alignItems: 'center' }}>
               <button
                 onClick={() => setStatusFilter('All')}
