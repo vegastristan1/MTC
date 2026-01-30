@@ -586,6 +586,420 @@ const MRCheckerPage = () => {
   );
 };
 
+// Inventory Page Component - All Stock Checker Inventory
+const InventoryPage = () => {
+  const [data, setData] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
+  const [pageSize, setPageSize] = useState(50);
+  const [currentPage, setCurrentPage] = useState(1);
+  const [totalPages, setTotalPages] = useState(1);
+  const [totalRecords, setTotalRecords] = useState(0);
+  const [searchTerm, setSearchTerm] = useState('');
+  const [selectedItem, setSelectedItem] = useState(null);
+  const [isMobile, setIsMobile] = useState(window.innerWidth < 768);
+  const [selectedWarehouse, setSelectedWarehouse] = useState('ALL');
+  const [warehouses, setWarehouses] = useState([]);
+
+  // Custom warehouse labels
+  const warehouseLabels = {
+    'M1': 'Main Warehouse',
+    'M2': 'Daet Warehouse',
+    'M3': 'Nearly Expire'
+  };
+
+  // Get warehouse display label
+  const getWarehouseLabel = (code) => {
+    return warehouseLabels[code] || code;
+  };
+
+  // Fetch warehouses on component mount
+  useEffect(() => {
+    axios.get('/api/allStockCheckerInventory/warehouses')
+      .then((res) => {
+        setWarehouses(res.data || []);
+      })
+      .catch((err) => {
+        console.error('Error fetching warehouses:', err);
+      });
+  }, []);
+
+  // Fields to display in list view - dynamic based on warehouse selection
+  const listColumns = selectedWarehouse === 'ALL' 
+    ? ['StockCode', 'Description', 'Warehouse', 'OnHandCS', 'OnHandPcs', 'StockFreeCS', 'StockFreePCS']
+    : ['StockCode', 'Description', 'OnHandCS', 'OnHandPcs', 'StockFreeCS', 'StockFreePCS'];
+
+  // All available columns
+  const allColumns = [
+    'StockCode', 'Description', 'Warehouse', 
+    'OnHandCS', 'OnHandPcs', 
+    'AllocCS', 'AllocPcs', 
+    'StockFreeCS', 'StockFreePCS',
+    'Value', 'PricePCS', 'PriceCS', 'Config', 'IB/Cs', 'Remarks'
+  ];
+
+  const columnLabels = {
+    'StockCode': 'Stock Code',
+    'Description': 'Description',
+    'Warehouse': 'Warehouse',
+    'OnHandCS': 'On Hand CS',
+    'OnHandPcs': 'On Hand PCS',
+    'AllocCS': 'Allocated CS',
+    'AllocPcs': 'Allocated PCS',
+    'StockFreeCS': 'Free Stock CS',
+    'StockFreePCS': 'Free Stock PCS',
+    'Value': 'Value',
+    'PricePCS': 'Price/PCS',
+    'PriceCS': 'Price/CS',
+    'Config': 'Config',
+    'IB/Cs': 'IB/CS',
+    'Remarks': 'Remarks'
+  };
+
+  // Detect mobile screen
+  useEffect(() => {
+    const handleResize = () => {
+      setIsMobile(window.innerWidth < 768);
+    };
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, []);
+
+  const formatNumber = (value, fractionDigits = 2) => {
+    if (value === null || value === undefined || value === '') return 'N/A';
+    const num = Number(value);
+    if (Number.isNaN(num)) return 'N/A';
+    return num.toFixed(fractionDigits);
+  };
+
+  const fetchData = (page = 1) => {
+    setLoading(true);
+    const params = new URLSearchParams();
+    if (searchTerm) params.append('search', searchTerm);
+    if (selectedWarehouse && selectedWarehouse !== 'ALL') params.append('warehouse', selectedWarehouse);
+    params.append('page', page);
+    params.append('pageSize', pageSize);
+    
+    axios.get(`/api/allStockCheckerInventory?${params.toString()}`)
+      .then((res) => {
+        const response = res.data;
+        setData(response.data || []);
+        setTotalPages(response.totalPages || 1);
+        setTotalRecords(response.total || 0);
+        setCurrentPage(response.page || 1);
+        setError(null);
+      })
+      .catch((err) => {
+        console.error('Error fetching Inventory data:', err);
+        setError('Error fetching Inventory data.');
+      })
+      .finally(() => setLoading(false));
+  };
+
+  useEffect(() => {
+    fetchData(1);
+  }, []);
+
+  const handlePageChange = (newPage) => {
+    if (newPage >= 1 && newPage <= totalPages) {
+      fetchData(newPage);
+    }
+  };
+
+  const handleRowsChange = (e) => {
+    const newSize = Number(e.target.value);
+    setPageSize(newSize);
+    setCurrentPage(1);
+    fetchData(1);
+  };
+
+  const handlePrevPage = () => {
+    if (currentPage > 1) {
+      handlePageChange(currentPage - 1);
+    }
+  };
+
+  const handleNextPage = () => {
+    if (currentPage < totalPages) {
+      handlePageChange(currentPage + 1);
+    }
+  };
+
+  const openModal = (item) => setSelectedItem(item);
+  const closeModal = () => setSelectedItem(null);
+
+  return (
+    <div style={mainContentStyle}>
+      <h1 style={{ marginBottom: '30px', color: '#333', fontSize: '28px' }}>All Stock Checker Inventory</h1>
+      
+      {/* Filter Section */}
+      <div style={{
+        backgroundColor: '#fff',
+        borderRadius: '12px',
+        padding: '24px',
+        boxShadow: '0 2px 8px rgba(0,0,0,0.08)',
+        marginBottom: '24px',
+      }}>
+        <div style={{ display: 'flex', gap: '16px', alignItems: 'center', flexWrap: 'wrap' }}>
+          <div>
+            <select
+              value={selectedWarehouse}
+              onChange={(e) => {
+                setSelectedWarehouse(e.target.value);
+                fetchData(1);
+              }}
+              style={{ padding: '8px 12px', borderRadius: '6px', border: '1px solid #ddd', minWidth: '180px' }}
+            >
+              <option value="ALL">All Warehouses</option>
+              {warehouses.map(wh => (
+                <option key={wh} value={wh}>{getWarehouseLabel(wh)}</option>
+              ))}
+            </select>
+          </div>
+          <div>
+            <input
+              type="text"
+              placeholder="Search Stock Code or Description..."
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              onKeyPress={(e) => e.key === 'Enter' && fetchData(1)}
+              style={{ padding: '8px 12px', borderRadius: '6px', border: '1px solid #ddd', width: '250px' }}
+            />
+          </div>
+          <button
+            onClick={() => fetchData(1)}
+            style={{
+              padding: '10px 24px',
+              backgroundColor: '#6c5ce7',
+              color: '#fff',
+              border: 'none',
+              borderRadius: '6px',
+              cursor: 'pointer',
+              fontWeight: '600',
+            }}
+          >
+            Search
+          </button>
+          <button
+            onClick={fetchData}
+            style={{
+              padding: '10px 24px',
+              backgroundColor: '#00d9ff',
+              color: '#1a1a2e',
+              border: 'none',
+              borderRadius: '6px',
+              cursor: 'pointer',
+              fontWeight: '600',
+            }}
+          >
+            Refresh
+          </button>
+        </div>
+      </div>
+
+      {/* Pagination Info */}
+      {loading && <p>Loading...</p>}
+      {!loading && error && <p style={{ color: 'red' }}>{error}</p>}
+      {!loading && !error && totalRecords > 0 && (
+        <div style={{
+          display: 'flex',
+          justifyContent: 'space-between',
+          alignItems: 'center',
+          marginBottom: '16px',
+          backgroundColor: '#fff',
+          padding: '16px 24px',
+          borderRadius: '8px',
+          flexWrap: 'wrap',
+          gap: '10px',
+        }}>
+          <span style={{ color: '#555' }}>
+            Showing {((currentPage - 1) * pageSize) + 1}–{Math.min(currentPage * pageSize, totalRecords)} of {totalRecords} records
+          </span>
+          <div style={{ display: 'flex', gap: '12px', alignItems: 'center' }}>
+            <span style={{ color: '#555' }}>Rows:</span>
+            <select
+              value={pageSize}
+              onChange={handleRowsChange}
+              style={{ padding: '6px 12px', borderRadius: '6px', border: '1px solid #ddd' }}
+            >
+              {[50, 100, 200, 500].map(size => <option key={size} value={size}>{size}</option>)}
+            </select>
+            <button onClick={handlePrevPage} disabled={currentPage === 1} style={{ padding: '6px 12px' }}>Prev</button>
+            <span>{currentPage} / {Math.max(totalPages, 1)}</span>
+            <button onClick={handleNextPage} disabled={currentPage === totalPages} style={{ padding: '6px 12px' }}>Next</button>
+          </div>
+        </div>
+      )}
+
+      {/* Clickable List View - Responsive */}
+      {!loading && !error && data.length > 0 && (
+        <div style={{
+          backgroundColor: '#fff',
+          borderRadius: '12px',
+          boxShadow: '0 2px 8px rgba(0,0,0,0.08)',
+          overflow: 'hidden',
+        }}>
+          {/* List Header - hidden on mobile */}
+          {!isMobile && (
+            <div style={{ 
+              display: 'grid', 
+              gridTemplateColumns: selectedWarehouse === 'ALL' ? '1.5fr 2.5fr 0.8fr 0.8fr 0.8fr 0.8fr 0.8fr' : '1.5fr 2.5fr 1fr 1fr 1fr 1fr',
+              padding: '14px 20px', 
+              backgroundColor: '#f8f9fa',
+              borderBottom: '2px solid #e9ecef',
+              fontWeight: '600',
+              color: '#333',
+            }}>
+              {listColumns.map(col => (
+                <div key={col}>{columnLabels[col] || col}</div>
+              ))}
+            </div>
+          )}
+          
+          {/* List Items */}
+          <div>
+            {data.map((item, rowIndex) => (
+              <div
+                key={rowIndex}
+                onClick={() => openModal(item)}
+                style={{
+                  padding: isMobile ? '16px' : '14px 20px',
+                  borderBottom: '1px solid #e9ecef',
+                  cursor: 'pointer',
+                  transition: 'background-color 0.2s ease',
+                }}
+                onMouseEnter={(e) => e.currentTarget.style.backgroundColor = '#f8f9fa'}
+                onMouseLeave={(e) => e.currentTarget.style.backgroundColor = '#fff'}
+              >
+                {isMobile ? (
+                  // Mobile card view
+                  <div>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '8px' }}>
+                      <span style={{ fontWeight: '600', color: '#333' }}>{item.StockCode}</span>
+                      <span style={{ color: '#888', fontSize: '12px' }}>{item.Warehouse}</span>
+                    </div>
+                    <div style={{ color: '#555', marginBottom: '8px', fontSize: '14px' }}>
+                      {item.Description?.length > 50 ? item.Description.substring(0, 50) + '...' : item.Description}
+                    </div>
+                    <div style={{ display: 'flex', gap: '16px', fontSize: '13px', color: '#888' }}>
+                      <span>OH: {formatNumber(item.OnHandCS, 0)}/{formatNumber(item.OnHandPcs, 0)}</span>
+                      <span>Free: {formatNumber(item.StockFreeCS, 0)}/{formatNumber(item.StockFreePCS, 0)}</span>
+                    </div>
+                  </div>
+                ) : (
+                  // Desktop grid view
+                  <div style={{ 
+                    display: 'grid', 
+                    gridTemplateColumns: selectedWarehouse === 'ALL' ? '1.5fr 2.5fr 0.8fr 0.8fr 0.8fr 0.8fr 0.8fr' : '1.5fr 2.5fr 1fr 1fr 1fr 1fr',
+                  }}>
+                    {listColumns.map(col => {
+                      let value = item[col];
+                      let displayValue = value;
+                      if (col === 'OnHandCS' || col === 'OnHandPcs' || col === 'StockFreeCS' || col === 'StockFreePCS') displayValue = formatNumber(value, 0);
+                      if (value === null || value === undefined) displayValue = '0';
+                      return (
+                        <div key={col} style={{ color: '#555' }}>{displayValue}</div>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {!loading && !error && data.length === 0 && (
+        <div style={{ textAlign: 'center', padding: '60px', color: '#888' }}>
+          No Inventory data available.
+        </div>
+      )}
+
+      {/* Modal for Full Details - Responsive */}
+      {selectedItem && (
+        <div style={{
+          position: 'fixed',
+          top: 0,
+          left: 0,
+          right: 0,
+          bottom: 0,
+          backgroundColor: 'rgba(0, 0, 0, 0.5)',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          zIndex: 1000,
+          padding: '20px',
+        }} onClick={closeModal}>
+          <div 
+            style={{
+              backgroundColor: '#fff',
+              borderRadius: '12px',
+              padding: '24px',
+              maxWidth: '700px',
+              width: '100%',
+              maxHeight: '80vh',
+              overflowY: 'auto',
+              boxShadow: '0 4px 20px rgba(0,0,0,0.15)',
+            }} 
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
+              <h2 style={{ margin: 0, color: '#333', fontSize: isMobile ? '20px' : '24px' }}>Item Details</h2>
+              <button
+                onClick={closeModal}
+                style={{
+                  background: 'none',
+                  border: 'none',
+                  fontSize: '28px',
+                  cursor: 'pointer',
+                  color: '#888',
+                  lineHeight: 1,
+                }}
+              >
+                ×
+              </button>
+            </div>
+            
+            <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr', gap: '12px' }}>
+              {allColumns.map(col => {
+                let value = selectedItem[col];
+                let displayValue = value;
+                if (col === 'Value' || col === 'PricePCS' || col === 'PriceCS') displayValue = formatNumber(value, 2);
+                if (col === 'OnHandCS' || col === 'OnHandPcs' || col === 'AllocCS' || col === 'AllocPcs' || col === 'StockFreeCS' || col === 'StockFreePCS') displayValue = formatNumber(value, 0);
+                if (value === null || value === undefined) displayValue = 'N/A';
+                
+                return (
+                  <div key={col} style={{ padding: '12px', backgroundColor: '#f8f9fa', borderRadius: '8px' }}>
+                    <div style={{ fontSize: '12px', color: '#888', marginBottom: '4px' }}>{columnLabels[col] || col}</div>
+                    <div style={{ color: '#333', fontWeight: '500', wordBreak: 'break-word' }}>{displayValue}</div>
+                  </div>
+                );
+              })}
+            </div>
+            
+            <div style={{ marginTop: '24px', textAlign: 'right' }}>
+              <button
+                onClick={closeModal}
+                style={{
+                  padding: '10px 24px',
+                  backgroundColor: '#00d9ff',
+                  color: '#1a1a2e',
+                  border: 'none',
+                  borderRadius: '6px',
+                  cursor: 'pointer',
+                  fontWeight: '600',
+                }}
+              >
+                Close
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+};
+
 // Placeholder Page Component
 const PlaceholderPage = ({ title, description }) => (
   <div style={mainContentStyle}>
@@ -622,11 +1036,11 @@ const Sidebar = () => {
       <NavLink to="/mr-checker" style={({ isActive }) => menuItemStyle(isActive)}>
         📦 MR Stock Checker
       </NavLink>
-
-      <div style={menuGroupStyle}>Future Pages</div>
       <NavLink to="/inventory" style={({ isActive }) => menuItemStyle(isActive)}>
         📋 Inventory
       </NavLink>
+
+      <div style={menuGroupStyle}>Future Pages</div>
       <NavLink to="/reports" style={({ isActive }) => menuItemStyle(isActive)}>
         📈 Reports
       </NavLink>
@@ -647,7 +1061,7 @@ function App() {
           <Routes>
             <Route path="/" element={<DashboardPage />} />
             <Route path="/mr-checker" element={<MRCheckerPage />} />
-            <Route path="/inventory" element={<PlaceholderPage title="Inventory" description="Inventory management page - Coming Soon" />} />
+            <Route path="/inventory" element={<InventoryPage />} />
             <Route path="/reports" element={<PlaceholderPage title="Reports" description="Reports and analytics page - Coming Soon" />} />
             <Route path="/settings" element={<PlaceholderPage title="Settings" description="Application settings - Coming Soon" />} />
             <Route path="*" element={<Navigate to="/" replace />} />
