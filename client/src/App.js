@@ -843,16 +843,24 @@ const InventoryPage = () => {
           {!isMobile && (
             <div style={{ 
               display: 'grid', 
-              gridTemplateColumns: selectedWarehouse === 'ALL' ? '1.5fr 2.5fr 0.8fr 0.8fr 0.8fr 0.8fr 0.8fr' : '1.5fr 2.5fr 1fr 1fr 1fr 1fr',
+              gridTemplateColumns: selectedWarehouse === 'ALL' 
+                ? '1fr 3fr 0.7fr 0.7fr 0.7fr 0.7fr 0.7fr' 
+                : '1fr 3fr 0.8fr 0.8fr 0.8fr 0.8fr',
               padding: '14px 20px', 
-              backgroundColor: '#f8f9fa',
-              borderBottom: '2px solid #e9ecef',
+              backgroundColor: '#e9ecef',
+              borderBottom: '2px solid #dee2e6',
               fontWeight: '600',
               color: '#333',
             }}>
-              {listColumns.map(col => (
-                <div key={col}>{columnLabels[col] || col}</div>
-              ))}
+              {listColumns.map(col => {
+                const isNumeric = ['OnHandCS', 'OnHandPcs', 'StockFreeCS', 'StockFreePCS'].includes(col);
+                return (
+                  <div key={col} style={{ 
+                    paddingRight: '12px',
+                    textAlign: isNumeric ? 'center' : 'left',
+                  }}>{columnLabels[col] || col}</div>
+                );
+              })}
             </div>
           )}
           
@@ -864,19 +872,22 @@ const InventoryPage = () => {
                 onClick={() => openModal(item)}
                 style={{
                   padding: isMobile ? '16px' : '14px 20px',
-                  borderBottom: '1px solid #e9ecef',
+                  borderBottom: '1px solid #dee2e6',
                   cursor: 'pointer',
-                  transition: 'background-color 0.2s ease',
+                  transition: 'background-color 0.15s ease',
+                  backgroundColor: rowIndex % 2 === 0 ? '#fff' : '#f8f9fa',
                 }}
-                onMouseEnter={(e) => e.currentTarget.style.backgroundColor = '#f8f9fa'}
-                onMouseLeave={(e) => e.currentTarget.style.backgroundColor = '#fff'}
+                onMouseEnter={(e) => e.currentTarget.style.backgroundColor = '#e3f2fd'}
+                onMouseLeave={(e) => e.currentTarget.style.backgroundColor = rowIndex % 2 === 0 ? '#fff' : '#f8f9fa'}
               >
                 {isMobile ? (
                   // Mobile card view
                   <div>
                     <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '8px' }}>
                       <span style={{ fontWeight: '600', color: '#333' }}>{item.StockCode}</span>
-                      <span style={{ color: '#888', fontSize: '12px' }}>{item.Warehouse}</span>
+                      {selectedWarehouse === 'ALL' && (
+                        <span style={{ color: '#888', fontSize: '12px' }}>{item.Warehouse}</span>
+                      )}
                     </div>
                     <div style={{ color: '#555', marginBottom: '8px', fontSize: '14px' }}>
                       {item.Description?.length > 50 ? item.Description.substring(0, 50) + '...' : item.Description}
@@ -890,15 +901,27 @@ const InventoryPage = () => {
                   // Desktop grid view
                   <div style={{ 
                     display: 'grid', 
-                    gridTemplateColumns: selectedWarehouse === 'ALL' ? '1.5fr 2.5fr 0.8fr 0.8fr 0.8fr 0.8fr 0.8fr' : '1.5fr 2.5fr 1fr 1fr 1fr 1fr',
+                    gridTemplateColumns: selectedWarehouse === 'ALL' 
+                      ? '1fr 3fr 0.7fr 0.7fr 0.7fr 0.7fr 0.7fr' 
+                      : '1fr 3fr 0.8fr 0.8fr 0.8fr 0.8fr',
+                    gap: '8px',
                   }}>
                     {listColumns.map(col => {
                       let value = item[col];
                       let displayValue = value;
                       if (col === 'OnHandCS' || col === 'OnHandPcs' || col === 'StockFreeCS' || col === 'StockFreePCS') displayValue = formatNumber(value, 0);
                       if (value === null || value === undefined) displayValue = '0';
+                      const isNumeric = ['OnHandCS', 'OnHandPcs', 'StockFreeCS', 'StockFreePCS'].includes(col);
+                      const isDescription = col === 'Description';
                       return (
-                        <div key={col} style={{ color: '#555' }}>{displayValue}</div>
+                        <div key={col} style={{ 
+                          color: '#555',
+                          paddingRight: '12px',
+                          textAlign: isNumeric ? 'center' : 'left',
+                          overflow: 'hidden',
+                          textOverflow: isDescription ? 'ellipsis' : 'clip',
+                          whiteSpace: isDescription ? 'nowrap' : 'nowrap',
+                        }}>{displayValue}</div>
                       );
                     })}
                   </div>
