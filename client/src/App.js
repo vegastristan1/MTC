@@ -622,8 +622,8 @@ const DashboardPage = () => {
             </div>
           ) : (
             <div style={{ display: 'flex', alignItems: 'flex-end', height: '200px', gap: '12px' }}>
-              {/* Previous 6 Months (oldest to newest: Dec 2025 -> Jul 2025) */}
-              {chartData.filter(d => d.type !== 'current').reverse().map((data, index) => (
+              {/* Previous 6 Months (oldest to newest: Jul 2025 -> Dec 2025) */}
+              {chartData.filter(d => d.type !== 'current').map((data, index) => (
                 <div key={index} style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', position: 'relative' }}>
                   <HoverTooltip 
                     content={`${data.month} ${data.year}: ₱${data.sales.toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`}
@@ -698,8 +698,8 @@ const DashboardPage = () => {
             </div>
           ) : (
             <div style={{ display: 'flex', alignItems: 'flex-end', height: '200px', gap: '12px' }}>
-              {/* Previous 6 Months (oldest to newest: Dec 2025 -> Jul 2025) */}
-              {monthlyOrdersData.filter(d => d.type !== 'current').reverse().map((data, index) => (
+              {/* Previous 6 Months (oldest to newest: Jul 2025 -> Dec 2025) */}
+              {monthlyOrdersData.filter(d => d.type !== 'current').map((data, index) => (
                 <div key={index} style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', position: 'relative' }}>
                   <HoverTooltip 
                     content={`${data.month} ${data.year}: ${data.orders} orders`}
