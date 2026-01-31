@@ -223,12 +223,13 @@ const mainContentStyle = {
 // Dashboard Page Component
 const DashboardPage = () => {
   const [stats, setStats] = useState([
-    { label: 'Total Sales', value: '$124,500', change: '+12.5%', positive: true },
+    { label: 'Total Sales', value: 'Loading...', change: 'This month', positive: true },
     { label: 'Orders Today', value: '48', change: '+5.2%', positive: true },
     { label: 'Pending', value: 'Loading...', change: 'Loading...', positive: false },
     { label: 'MR Stock Items', value: '156', change: '+8.3%', positive: true },
   ]);
   const [pendingLoading, setPendingLoading] = useState(true);
+  const [totalSalesLoading, setTotalSalesLoading] = useState(true);
   
   // Modal states
   const [showPendingModal, setShowPendingModal] = useState(false);
@@ -300,6 +301,31 @@ const DashboardPage = () => {
         ));
       })
       .finally(() => setPendingLoading(false));
+  }, []);
+
+  // Fetch total sales for current month
+  useEffect(() => {
+    setTotalSalesLoading(true);
+    axios.get('/api/totalsales')
+      .then((res) => {
+        const totalSales = res.data.totalSalesInMonth || 0;
+        const formattedValue = new Intl.NumberFormat('en-PH', { 
+          style: 'currency', 
+          currency: 'PHP',
+          minimumFractionDigits: 2,
+          maximumFractionDigits: 2
+        }).format(totalSales);
+        setStats(prevStats => prevStats.map(stat => 
+          stat.label === 'Total Sales' ? { ...stat, value: formattedValue } : stat
+        ));
+      })
+      .catch((err) => {
+        console.error('Error fetching total sales:', err);
+        setStats(prevStats => prevStats.map(stat => 
+          stat.label === 'Total Sales' ? { ...stat, value: '₱0.00' } : stat
+        ));
+      })
+      .finally(() => setTotalSalesLoading(false));
   }, []);
 
   // Debounced search for pending list
@@ -440,7 +466,7 @@ const DashboardPage = () => {
               {stat.label === 'Pending' && ' 📋'}
             </p>
             <h3 style={{ margin: '0 0 8px 0', fontSize: '28px', color: '#333' }}>
-              {stat.label === 'Pending' && pendingLoading ? (
+              {(stat.label === 'Pending' && pendingLoading) || (stat.label === 'Total Sales' && totalSalesLoading) ? (
                 <span style={{ fontSize: '16px', color: '#888' }}>Loading...</span>
               ) : (
                 stat.value
@@ -451,7 +477,7 @@ const DashboardPage = () => {
               fontSize: '13px',
               fontWeight: '500',
             }}>
-              {stat.label === 'Pending' ? 'Click to view details' : `${stat.change} from last month`}
+              {stat.label === 'Pending' ? 'Click to view details' : stat.change}
             </span>
           </div>
         ))}
