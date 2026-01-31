@@ -55,16 +55,16 @@ router.get('/', async (req, res) => {
         const query = `
             SELECT SUM(sa.LineValue * 1.12) as totalValueWithTax
             FROM SorMaster sm
-            INNER JOIN SorAdditions sa ON sa.SalesOrder = sm.SalesOrder
+            INNER JOIN SorAdditions sa ON sa.SalesOrder = sm.SalesOrder and sa.OrderQty = sa.ShipQty
             WHERE sm.OrderStatus IN ('8', '0')
               AND sm.OrderDate >= @startDate 
               AND sm.OrderDate < DATEADD(day, 1, @endDate)
-              AND sm.OrderType = 'B' 
+              
               AND sm.DocumentType = 'B'
               AND sm.Salesperson IN ('F01', 'F03', 'F04', 'N01', 'N02', 'N03', 'N05', 'N06', 'N07', 'N08', 'N12', 'N14', 'N75')
               AND sa.LineValue > 0
         `;
-
+// AND sm.OrderType = 'B' 
         const result = await request.query(query);
         const totalValue = result.recordset[0]?.totalValueWithTax || 0;
         
@@ -108,11 +108,11 @@ router.get('/list', async (req, res) => {
             WHERE sm.OrderStatus IN ('8', '0')
               AND sm.OrderDate >= @startDate 
               AND sm.OrderDate < DATEADD(day, 1, @endDate)
-              AND sm.OrderType = 'B'
+             
               AND sm.DocumentType = 'B'
               AND sm.Salesperson IN ('F01','F03','F04','N01','N02','N03','N05','N06','N07','N08','N12','N14','N75')
         `;
-
+//  AND sm.OrderType = 'B'
         if (searchTerm) {
             request.input('searchTerm', `%${searchTerm}%`);
             whereClause += `
