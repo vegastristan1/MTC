@@ -1,0 +1,5 @@
+SELECT Count(InvoiceNumber) as TotalOrderToday
+FROM SorMasterRep 
+WHERE OrderDate >= '2026-01-31'
+and OrderStatus in ('9', '2')
+and DocumentType = 'B'

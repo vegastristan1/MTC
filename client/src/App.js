@@ -279,9 +279,16 @@ const mainContentStyle = {
 
 // Dashboard Page Component
 const DashboardPage = () => {
+  // Orders Today state (must be before stats)
+  const [ordersTodayData, setOrdersTodayData] = useState({
+    totalOrderToday: 0,
+    percentageChange: 0
+  });
+  const [ordersTodayLoading, setOrdersTodayLoading] = useState(true);
+
   const [stats, setStats] = useState([
     { label: 'Total Sales', value: 'Loading...', change: 'This month', positive: true },
-    { label: 'Orders Today', value: '48', change: '+5.2%', positive: true },
+    { label: 'Orders Today', value: ordersTodayData.totalOrderToday.toString(), change: `${ordersTodayData.percentageChange >= 0 ? '+' : ''}${ordersTodayData.percentageChange}% vs yesterday`, positive: ordersTodayData.percentageChange >= 0 },
     { label: 'Pending', value: 'Loading...', change: 'Loading...', positive: false },
     { label: 'MR Stock Items', value: '156', change: '+8.3%', positive: true },
   ]);
@@ -307,6 +314,10 @@ const DashboardPage = () => {
   const [chartData, setChartData] = useState([]);
   const [chartLoading, setChartLoading] = useState(true);
 
+  // Monthly Orders state
+  const [monthlyOrdersData, setMonthlyOrdersData] = useState([]);
+  const [monthlyOrdersLoading, setMonthlyOrdersLoading] = useState(true);
+
   const [criticalStock, setCriticalStock] = useState([]);
   const [criticalLoading, setCriticalLoading] = useState(true);
   const [statusFilter, setStatusFilter] = useState('All');
@@ -325,6 +336,48 @@ const DashboardPage = () => {
       })
       .finally(() => setCriticalLoading(false));
   }, [warehouseFilter]);
+
+  // Fetch orders today data
+  useEffect(() => {
+    setOrdersTodayLoading(true);
+    axios.get('/api/totalordertoday')
+      .then((res) => {
+        const { totalOrderToday, percentageChange } = res.data;
+        setOrdersTodayData({
+          totalOrderToday,
+          percentageChange
+        });
+      })
+      .catch((err) => {
+        console.error('Error fetching orders today:', err);
+      })
+      .finally(() => setOrdersTodayLoading(false));
+  }, []);
+
+  // Update stats when ordersTodayData changes
+  useEffect(() => {
+    setStats(prevStats => prevStats.map(stat => 
+      stat.label === 'Orders Today' ? { 
+        ...stat, 
+        value: ordersTodayData.totalOrderToday.toString(),
+        change: `${ordersTodayData.percentageChange >= 0 ? '+' : ''}${ordersTodayData.percentageChange}% vs yesterday`,
+        positive: ordersTodayData.percentageChange >= 0
+      } : stat
+    ));
+  }, [ordersTodayData, ordersTodayLoading]);
+
+  // Fetch monthly orders data
+  useEffect(() => {
+    setMonthlyOrdersLoading(true);
+    axios.get('/api/totalordertoday/monthly')
+      .then((res) => {
+        setMonthlyOrdersData(res.data.monthlyData || []);
+      })
+      .catch((err) => {
+        console.error('Error fetching monthly orders:', err);
+      })
+      .finally(() => setMonthlyOrdersLoading(false));
+  }, []);
 
   // Fetch pending total ValueWithTax for current month
   useEffect(() => {
@@ -536,7 +589,7 @@ const DashboardPage = () => {
               {stat.label === 'Pending' && ' 📋'}
             </p>
             <h3 style={{ margin: '0 0 8px 0', fontSize: '28px', color: '#333' }}>
-              {(stat.label === 'Pending' && pendingLoading) || (stat.label === 'Total Sales' && chartLoading) ? (
+              {(stat.label === 'Pending' && pendingLoading) || (stat.label === 'Total Sales' && chartLoading) || (stat.label === 'Orders Today' && ordersTodayLoading) ? (
                 <span style={{ fontSize: '16px', color: '#888' }}>Loading...</span>
               ) : (
                 stat.value
@@ -639,34 +692,72 @@ const DashboardPage = () => {
           boxShadow: '0 2px 8px rgba(0,0,0,0.08)',
         }}>
           <h3 style={{ margin: '0 0 20px 0', color: '#333' }}>Monthly Orders</h3>
-          <div style={{ display: 'flex', alignItems: 'flex-end', height: '200px', gap: '12px' }}>
-            {/* Previous 6 Months (oldest to newest: Dec 2025 -> Jul 2025) */}
-            {chartData.filter(d => d.type !== 'current').reverse().map((data, index) => (
-              <div key={index} style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
-                <div style={{
-                  width: '100%',
-                  height: `${Math.max((data.sales / (Math.max(...chartData.map(d => d.sales)) || 1)) * 180, 10)}px`,
-                  backgroundColor: '#6c5ce7',
-                  borderRadius: '6px 6px 0 0',
-                  transition: 'height 0.3s ease',
-                }}></div>
-                <span style={{ marginTop: '8px', fontSize: '12px', color: '#666' }}>{data.month} {data.year}</span>
-              </div>
-            ))}
-            {/* Current Month Bar (January 2026) - shown last */}
-            {chartData.length > 0 && chartData.find(d => d.type === 'current') && (
-              <div style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
-                <div style={{
-                  width: '100%',
-                  height: `${Math.max((chartData.find(d => d.type === 'current').sales / (Math.max(...chartData.map(d => d.sales)) || 1)) * 180, 10)}px`,
-                  backgroundColor: '#6c5ce7',
-                  borderRadius: '6px 6px 0 0',
-                  transition: 'height 0.3s ease',
-                }}></div>
-                <span style={{ marginTop: '8px', fontSize: '12px', color: '#666', fontWeight: 'bold' }}>{chartData.find(d => d.type === 'current').month} {chartData.find(d => d.type === 'current').year}</span>
-              </div>
-            )}
-          </div>
+          {monthlyOrdersLoading ? (
+            <div style={{ height: '200px', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#888' }}>
+              Loading chart data...
+            </div>
+          ) : (
+            <div style={{ display: 'flex', alignItems: 'flex-end', height: '200px', gap: '12px' }}>
+              {/* Previous 6 Months (oldest to newest: Dec 2025 -> Jul 2025) */}
+              {monthlyOrdersData.filter(d => d.type !== 'current').reverse().map((data, index) => (
+                <div key={index} style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', position: 'relative' }}>
+                  <HoverTooltip 
+                    content={`${data.month} ${data.year}: ${data.orders} orders`}
+                  >
+                    <div 
+                      className="orders-bar"
+                      style={{
+                        width: '100%',
+                        height: `${Math.max((data.orders / (Math.max(...monthlyOrdersData.map(d => d.orders)) || 1)) * 180, 10)}px`,
+                        backgroundColor: '#6c5ce7',
+                        borderRadius: '6px 6px 0 0',
+                        transition: 'all 0.3s ease',
+                        cursor: 'pointer',
+                      }}
+                      onMouseEnter={(e) => {
+                        e.target.style.backgroundColor = '#5b4cdb';
+                        e.target.style.transform = 'scaleY(1.02)';
+                      }}
+                      onMouseLeave={(e) => {
+                        e.target.style.backgroundColor = '#6c5ce7';
+                        e.target.style.transform = 'scaleY(1)';
+                      }}
+                    />
+                  </HoverTooltip>
+                  <span style={{ marginTop: '8px', fontSize: '12px', color: '#666' }}>{data.month} {data.year}</span>
+                </div>
+              ))}
+              {/* Current Month Bar - shown last */}
+              {monthlyOrdersData.length > 0 && monthlyOrdersData.find(d => d.type === 'current') && (
+                <div style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', position: 'relative' }}>
+                  <HoverTooltip 
+                    content={`${monthlyOrdersData.find(d => d.type === 'current').month} ${monthlyOrdersData.find(d => d.type === 'current').year}: ${monthlyOrdersData.find(d => d.type === 'current').orders} orders`}
+                  >
+                    <div 
+                      className="orders-bar"
+                      style={{
+                        width: '100%',
+                        height: `${Math.max((monthlyOrdersData.find(d => d.type === 'current').orders / (Math.max(...monthlyOrdersData.map(d => d.orders)) || 1)) * 180, 10)}px`,
+                        backgroundColor: '#28a745',
+                        borderRadius: '6px 6px 0 0',
+                        transition: 'all 0.3s ease',
+                        cursor: 'pointer',
+                      }}
+                      onMouseEnter={(e) => {
+                        e.target.style.backgroundColor = '#1e7e34';
+                        e.target.style.transform = 'scaleY(1.02)';
+                      }}
+                      onMouseLeave={(e) => {
+                        e.target.style.backgroundColor = '#28a745';
+                        e.target.style.transform = 'scaleY(1)';
+                      }}
+                    />
+                  </HoverTooltip>
+                  <span style={{ marginTop: '8px', fontSize: '12px', color: '#666', fontWeight: 'bold' }}>{monthlyOrdersData.find(d => d.type === 'current').month} {monthlyOrdersData.find(d => d.type === 'current').year}</span>
+                </div>
+              )}
+            </div>
+          )}
         </div>
 
         {/* Recent Activity */}
