@@ -175,6 +175,63 @@ const TruckDeliveryLoading = ({ onComplete }) => {
   );
 };
 
+// Hover Tooltip Component
+const HoverTooltip = ({ children, content }) => {
+  const [show, setShow] = useState(false);
+  const [position, setPosition] = useState({ x: 0, y: 0 });
+
+  const handleMouseEnter = (e) => {
+    setShow(true);
+    updatePosition(e);
+  };
+
+  const handleMouseLeave = () => {
+    setShow(false);
+  };
+
+  const handleMouseMove = (e) => {
+    updatePosition(e);
+  };
+
+  const updatePosition = (e) => {
+    const rect = e.currentTarget.getBoundingClientRect();
+    setPosition({
+      x: e.clientX - rect.left,
+      y: e.clientY - rect.top - 40
+    });
+  };
+
+  return (
+    <div 
+      style={{ position: 'relative', width: '100%', height: '100%' }}
+      onMouseEnter={handleMouseEnter}
+      onMouseLeave={handleMouseLeave}
+      onMouseMove={handleMouseMove}
+    >
+      {children}
+      {show && (
+        <div style={{
+          position: 'absolute',
+          left: position.x,
+          top: position.y,
+          transform: 'translateX(-50%)',
+          backgroundColor: 'rgba(0, 0, 0, 0.8)',
+          color: '#fff',
+          padding: '8px 12px',
+          borderRadius: '6px',
+          fontSize: '12px',
+          whiteSpace: 'nowrap',
+          zIndex: 100,
+          pointerEvents: 'none',
+          boxShadow: '0 2px 8px rgba(0,0,0,0.2)',
+        }}>
+          {content}
+        </div>
+      )}
+    </div>
+  );
+};
+
 // Sidebar styles
 const sidebarStyle = {
   width: '250px',
@@ -229,7 +286,6 @@ const DashboardPage = () => {
     { label: 'MR Stock Items', value: '156', change: '+8.3%', positive: true },
   ]);
   const [pendingLoading, setPendingLoading] = useState(true);
-  const [totalSalesLoading, setTotalSalesLoading] = useState(true);
   
   // Modal states
   const [showPendingModal, setShowPendingModal] = useState(false);
@@ -248,21 +304,13 @@ const DashboardPage = () => {
   const [pendingDebouncedSearch, setPendingDebouncedSearch] = useState('');
   const [pendingListCache, setPendingListCache] = useState({});
 
-  const [chartData] = useState([
-    { month: 'Jan', sales: 45000, orders: 120 },
-    { month: 'Feb', sales: 52000, orders: 135 },
-    { month: 'Mar', sales: 48000, orders: 128 },
-    { month: 'Apr', sales: 61000, orders: 145 },
-    { month: 'May', sales: 55000, orders: 138 },
-    { month: 'Jun', sales: 67000, orders: 152 },
-  ]);
+  const [chartData, setChartData] = useState([]);
+  const [chartLoading, setChartLoading] = useState(true);
 
   const [criticalStock, setCriticalStock] = useState([]);
   const [criticalLoading, setCriticalLoading] = useState(true);
   const [statusFilter, setStatusFilter] = useState('All');
   const [warehouseFilter, setWarehouseFilter] = useState('M1');
-
-  const maxSales = Math.max(...chartData.map(d => d.sales));
 
   // Fetch critical stock data
   useEffect(() => {
@@ -303,29 +351,51 @@ const DashboardPage = () => {
       .finally(() => setPendingLoading(false));
   }, []);
 
-  // Fetch total sales for current month
+  // Fetch monthly sales for past 7 months (current month + 6 previous)
+  // and calculate percentage change between December and January
   useEffect(() => {
-    setTotalSalesLoading(true);
-    axios.get('/api/totalsales')
+    setChartLoading(true);
+    axios.get('/api/totalsales/monthly')
       .then((res) => {
-        const totalSales = res.data.totalSalesInMonth || 0;
-        const formattedValue = new Intl.NumberFormat('en-PH', { 
-          style: 'currency', 
-          currency: 'PHP',
-          minimumFractionDigits: 2,
-          maximumFractionDigits: 2
-        }).format(totalSales);
-        setStats(prevStats => prevStats.map(stat => 
-          stat.label === 'Total Sales' ? { ...stat, value: formattedValue } : stat
-        ));
+        const monthlyData = res.data.monthlyData || [];
+        setChartData(monthlyData);
+        
+        // Find January (current month) and December (previous month) sales
+        const currentMonth = monthlyData.find(d => d.type === 'current');
+        const previousMonth = monthlyData.find(d => d.type === 'monthly' && d.month === 'Dec');
+        
+        // Update Total Sales stat with current month sales
+        if (currentMonth) {
+          const formattedValue = new Intl.NumberFormat('en-PH', { 
+            style: 'currency', 
+            currency: 'PHP',
+            minimumFractionDigits: 2,
+            maximumFractionDigits: 2
+          }).format(currentMonth.sales);
+          setStats(prevStats => prevStats.map(stat => 
+            stat.label === 'Total Sales' ? { ...stat, value: formattedValue } : stat
+          ));
+        }
+        
+        // Calculate percentage change between December and January
+        if (currentMonth && previousMonth && previousMonth.sales > 0) {
+          // Formula: (December / January - 100)%
+          const percentage = ((previousMonth.sales / currentMonth.sales) * 100 - 100).toFixed(1);
+          const isPositive = parseFloat(percentage) >= 0;
+          
+          setStats(prevStats => prevStats.map(stat => 
+            stat.label === 'Total Sales' ? { 
+              ...stat, 
+              change: `${isPositive ? '+' : ''}${percentage}% vs ${previousMonth.month} ${previousMonth.year}`,
+              positive: isPositive
+            } : stat
+          ));
+        }
       })
       .catch((err) => {
-        console.error('Error fetching total sales:', err);
-        setStats(prevStats => prevStats.map(stat => 
-          stat.label === 'Total Sales' ? { ...stat, value: '₱0.00' } : stat
-        ));
+        console.error('Error fetching monthly sales:', err);
       })
-      .finally(() => setTotalSalesLoading(false));
+      .finally(() => setChartLoading(false));
   }, []);
 
   // Debounced search for pending list
@@ -466,7 +536,7 @@ const DashboardPage = () => {
               {stat.label === 'Pending' && ' 📋'}
             </p>
             <h3 style={{ margin: '0 0 8px 0', fontSize: '28px', color: '#333' }}>
-              {(stat.label === 'Pending' && pendingLoading) || (stat.label === 'Total Sales' && totalSalesLoading) ? (
+              {(stat.label === 'Pending' && pendingLoading) || (stat.label === 'Total Sales' && chartLoading) ? (
                 <span style={{ fontSize: '16px', color: '#888' }}>Loading...</span>
               ) : (
                 stat.value
@@ -493,20 +563,72 @@ const DashboardPage = () => {
           boxShadow: '0 2px 8px rgba(0,0,0,0.08)',
         }}>
           <h3 style={{ margin: '0 0 20px 0', color: '#333' }}>Monthly Sales Overview</h3>
-          <div style={{ display: 'flex', alignItems: 'flex-end', height: '200px', gap: '12px' }}>
-            {chartData.map((data, index) => (
-              <div key={index} style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
-                <div style={{
-                  width: '100%',
-                  height: `${(data.sales / maxSales) * 180}px`,
-                  backgroundColor: '#00d9ff',
-                  borderRadius: '6px 6px 0 0',
-                  transition: 'height 0.3s ease',
-                }}></div>
-                <span style={{ marginTop: '8px', fontSize: '12px', color: '#666' }}>{data.month}</span>
-              </div>
-            ))}
-          </div>
+          {chartLoading ? (
+            <div style={{ height: '200px', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#888' }}>
+              Loading chart data...
+            </div>
+          ) : (
+            <div style={{ display: 'flex', alignItems: 'flex-end', height: '200px', gap: '12px' }}>
+              {/* Previous 6 Months (oldest to newest: Dec 2025 -> Jul 2025) */}
+              {chartData.filter(d => d.type !== 'current').reverse().map((data, index) => (
+                <div key={index} style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', position: 'relative' }}>
+                  <HoverTooltip 
+                    content={`${data.month} ${data.year}: ₱${data.sales.toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`}
+                  >
+                    <div 
+                      className="sales-bar"
+                      style={{
+                        width: '100%',
+                        height: `${Math.max((data.sales / (Math.max(...chartData.map(d => d.sales)) || 1)) * 180, 10)}px`,
+                        backgroundColor: '#00d9ff',
+                        borderRadius: '6px 6px 0 0',
+                        transition: 'all 0.3s ease',
+                        cursor: 'pointer',
+                      }}
+                      onMouseEnter={(e) => {
+                        e.target.style.backgroundColor = '#00b8d9';
+                        e.target.style.transform = 'scaleY(1.02)';
+                      }}
+                      onMouseLeave={(e) => {
+                        e.target.style.backgroundColor = '#00d9ff';
+                        e.target.style.transform = 'scaleY(1)';
+                      }}
+                    />
+                  </HoverTooltip>
+                  <span style={{ marginTop: '8px', fontSize: '12px', color: '#666' }}>{data.month} {data.year}</span>
+                </div>
+              ))}
+              {/* Current Month Bar (January 2026) - shown last */}
+              {chartData.length > 0 && chartData.find(d => d.type === 'current') && (
+                <div style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', position: 'relative' }}>
+                  <HoverTooltip 
+                    content={`${chartData.find(d => d.type === 'current').month} ${chartData.find(d => d.type === 'current').year}: ₱${chartData.find(d => d.type === 'current').sales.toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`}
+                  >
+                    <div 
+                      className="sales-bar"
+                      style={{
+                        width: '100%',
+                        height: `${Math.max((chartData.find(d => d.type === 'current').sales / (Math.max(...chartData.map(d => d.sales)) || 1)) * 180, 10)}px`,
+                        backgroundColor: '#28a745',
+                        borderRadius: '6px 6px 0 0',
+                        transition: 'all 0.3s ease',
+                        cursor: 'pointer',
+                      }}
+                      onMouseEnter={(e) => {
+                        e.target.style.backgroundColor = '#1e7e34';
+                        e.target.style.transform = 'scaleY(1.02)';
+                      }}
+                      onMouseLeave={(e) => {
+                        e.target.style.backgroundColor = '#28a745';
+                        e.target.style.transform = 'scaleY(1)';
+                      }}
+                    />
+                  </HoverTooltip>
+                  <span style={{ marginTop: '8px', fontSize: '12px', color: '#666', fontWeight: 'bold' }}>{chartData.find(d => d.type === 'current').month} {chartData.find(d => d.type === 'current').year}</span>
+                </div>
+              )}
+            </div>
+          )}
         </div>
 
         {/* Orders Chart */}
@@ -518,18 +640,32 @@ const DashboardPage = () => {
         }}>
           <h3 style={{ margin: '0 0 20px 0', color: '#333' }}>Monthly Orders</h3>
           <div style={{ display: 'flex', alignItems: 'flex-end', height: '200px', gap: '12px' }}>
-            {chartData.map((data, index) => (
+            {/* Previous 6 Months (oldest to newest: Dec 2025 -> Jul 2025) */}
+            {chartData.filter(d => d.type !== 'current').reverse().map((data, index) => (
               <div key={index} style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
                 <div style={{
                   width: '100%',
-                  height: `${(data.orders / 160) * 180}px`,
+                  height: `${Math.max((data.sales / (Math.max(...chartData.map(d => d.sales)) || 1)) * 180, 10)}px`,
                   backgroundColor: '#6c5ce7',
                   borderRadius: '6px 6px 0 0',
                   transition: 'height 0.3s ease',
                 }}></div>
-                <span style={{ marginTop: '8px', fontSize: '12px', color: '#666' }}>{data.month}</span>
+                <span style={{ marginTop: '8px', fontSize: '12px', color: '#666' }}>{data.month} {data.year}</span>
               </div>
             ))}
+            {/* Current Month Bar (January 2026) - shown last */}
+            {chartData.length > 0 && chartData.find(d => d.type === 'current') && (
+              <div style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
+                <div style={{
+                  width: '100%',
+                  height: `${Math.max((chartData.find(d => d.type === 'current').sales / (Math.max(...chartData.map(d => d.sales)) || 1)) * 180, 10)}px`,
+                  backgroundColor: '#6c5ce7',
+                  borderRadius: '6px 6px 0 0',
+                  transition: 'height 0.3s ease',
+                }}></div>
+                <span style={{ marginTop: '8px', fontSize: '12px', color: '#666', fontWeight: 'bold' }}>{chartData.find(d => d.type === 'current').month} {chartData.find(d => d.type === 'current').year}</span>
+              </div>
+            )}
           </div>
         </div>
 
