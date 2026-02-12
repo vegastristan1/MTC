@@ -9,6 +9,40 @@ import {
   useLocation,
 } from 'react-router-dom';
 
+// Responsive breakpoints
+const BREAKPOINTS = {
+  mobile: 768,
+  tablet: 1024,
+};
+
+// Hook for detecting screen size
+const useScreenSize = () => {
+  const [screenSize, setScreenSize] = useState({
+    width: window.innerWidth,
+    height: window.innerHeight,
+    isMobile: window.innerWidth < BREAKPOINTS.mobile,
+    isTablet: window.innerWidth >= BREAKPOINTS.mobile && window.innerWidth < BREAKPOINTS.tablet,
+    isDesktop: window.innerWidth >= BREAKPOINTS.tablet,
+  });
+
+  useEffect(() => {
+    const handleResize = () => {
+      setScreenSize({
+        width: window.innerWidth,
+        height: window.innerHeight,
+        isMobile: window.innerWidth < BREAKPOINTS.mobile,
+        isTablet: window.innerWidth >= BREAKPOINTS.mobile && window.innerWidth < BREAKPOINTS.tablet,
+        isDesktop: window.innerWidth >= BREAKPOINTS.tablet,
+      });
+    };
+
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, []);
+
+  return screenSize;
+};
+
 // Truck Delivery Loading Animation Component
 const TruckDeliveryLoading = ({ onComplete }) => {
   const [packageDropped, setPackageDropped] = useState(false);
@@ -245,6 +279,8 @@ const sidebarStyle = {
   display: 'flex',
   flexDirection: 'column',
   flexShrink: 0,
+  zIndex: 1000,
+  transition: 'transform 0.3s ease',
 };
 
 const menuItemStyle = (isActive) => ({
@@ -270,15 +306,19 @@ const menuGroupStyle = {
 };
 
 const mainContentStyle = {
-  marginLeft: '120px',
-  padding: '30px',
+  // marginLeft: '250px',
+  padding: '20px',
   minHeight: '100vh',
   backgroundColor: '#f5f7fa',
   flex: 1,
+  // width: 'calc(100% - 250px)',
+  transition: 'margin-left 0.3s ease, width 0.3s ease',
 };
 
 // Dashboard Page Component
 const DashboardPage = () => {
+  const screenSize = useScreenSize();
+  
   // Orders Today state (must be before stats)
   const [ordersTodayData, setOrdersTodayData] = useState({
     totalOrderToday: 0,
@@ -413,9 +453,11 @@ const DashboardPage = () => {
         const monthlyData = res.data.monthlyData || [];
         setChartData(monthlyData);
         
-        // Find January (current month) and December (previous month) sales
+        // Find current month and previous month (most recent monthly entry)
         const currentMonth = monthlyData.find(d => d.type === 'current');
-        const previousMonth = monthlyData.find(d => d.type === 'monthly' && d.month === 'Dec');
+        // Get all monthly entries and find the one with the most recent date
+        const monthlyEntries = monthlyData.filter(d => d.type === 'monthly');
+        const previousMonth = monthlyEntries.length > 0 ? monthlyEntries[monthlyEntries.length - 1] : null;
         
         // Update Total Sales stat with current month sales
         if (currentMonth) {
@@ -430,12 +472,12 @@ const DashboardPage = () => {
           ));
         }
         
-        // Calculate percentage change between December and January
+        // Calculate percentage change between this month and last month
+        // Formula: (thisMonth - lastMonth) / lastMonth * 100%
         if (currentMonth && previousMonth && previousMonth.sales > 0) {
-          // Formula: (December / January - 100)%
-          const percentage = ((previousMonth.sales / currentMonth.sales) * 100 - 100).toFixed(1);
+          const percentage = (((currentMonth.sales - previousMonth.sales) / previousMonth.sales) * 100).toFixed(1);
           const isPositive = parseFloat(percentage) >= 0;
-          
+           
           setStats(prevStats => prevStats.map(stat => 
             stat.label === 'Total Sales' ? { 
               ...stat, 
@@ -559,18 +601,36 @@ const DashboardPage = () => {
   };
 
   return (
-    <div style={mainContentStyle}>
-      <h1 style={{ marginBottom: '30px', color: '#333', fontSize: '28px' }}>Dashboard</h1>
+    <div style={{
+      ...mainContentStyle,
+      // marginLeft: screenSize.isMobile ? 0 : '250px',
+      // width: screenSize.isMobile ? '100%' : 'calc(100% - 250px)',
+      paddingTop: screenSize.isMobile ? '70px' : '20px',
+    }}>
+      <h1 style={{ 
+        marginBottom: '20px', 
+        color: '#333', 
+        fontSize: screenSize.isMobile ? '22px' : '28px' 
+      }}>Dashboard</h1>
       
-      {/* Stats Cards */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '20px', marginBottom: '30px' }}>
+      {/* Stats Cards - Responsive Grid */}
+      <div style={{ 
+        display: 'grid', 
+        gridTemplateColumns: screenSize.isMobile 
+          ? '1fr' 
+          : screenSize.isTablet 
+            ? 'repeat(2, 1fr)' 
+            : 'repeat(auto-fit, minmax(200px, 1fr))', 
+        gap: '16px', 
+        marginBottom: '24px' 
+      }}>
         {stats.map((stat, index) => (
           <div key={index} 
             onClick={() => stat.label === 'Pending' && fetchPendingList()}
             style={{
               backgroundColor: '#fff',
               borderRadius: '12px',
-              padding: '24px',
+              padding: screenSize.isMobile ? '16px' : '24px',
               boxShadow: stat.label === 'Pending' ? '0 4px 12px rgba(0,0,0,0.15)' : '0 2px 8px rgba(0,0,0,0.08)',
               transition: 'transform 0.2s ease, box-shadow 0.2s ease',
               cursor: stat.label === 'Pending' ? 'pointer' : 'default',
@@ -584,20 +644,20 @@ const DashboardPage = () => {
               e.currentTarget.style.transform = 'translateY(0)';
             }}
           >
-            <p style={{ color: '#888', margin: '0 0 8px 0', fontSize: '14px' }}>
+            <p style={{ color: '#888', margin: '0 0 8px 0', fontSize: '13px' }}>
               {stat.label}
               {stat.label === 'Pending' && ' 📋'}
             </p>
-            <h3 style={{ margin: '0 0 8px 0', fontSize: '28px', color: '#333' }}>
+            <h3 style={{ margin: '0 0 8px 0', fontSize: screenSize.isMobile ? '22px' : '28px', color: '#333' }}>
               {(stat.label === 'Pending' && pendingLoading) || (stat.label === 'Total Sales' && chartLoading) || (stat.label === 'Orders Today' && ordersTodayLoading) ? (
-                <span style={{ fontSize: '16px', color: '#888' }}>Loading...</span>
+                <span style={{ fontSize: '14px', color: '#888' }}>Loading...</span>
               ) : (
                 stat.value
               )}
             </h3>
             <span style={{
               color: stat.positive ? '#28a745' : '#dc3545',
-              fontSize: '13px',
+              fontSize: '12px',
               fontWeight: '500',
             }}>
               {stat.label === 'Pending' ? 'Click to view details' : stat.change}
@@ -606,25 +666,35 @@ const DashboardPage = () => {
         ))}
       </div>
 
-      {/* Charts Section */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(400px, 1fr))', gap: '20px' }}>
+      {/* Charts Section - Responsive Grid */}
+      <div style={{ 
+        display: 'grid', 
+        gridTemplateColumns: screenSize.isMobile ? '1fr' : screenSize.isTablet ? 'repeat(2, 1fr)' : 'repeat(auto-fit, minmax(350px, 1fr))', 
+        gap: '20px' 
+      }}>
         {/* Sales Chart */}
         <div style={{
           backgroundColor: '#fff',
           borderRadius: '12px',
-          padding: '24px',
+          padding: '20px',
           boxShadow: '0 2px 8px rgba(0,0,0,0.08)',
         }}>
-          <h3 style={{ margin: '0 0 20px 0', color: '#333' }}>Monthly Sales Overview</h3>
+          <h3 style={{ margin: '0 0 16px 0', color: '#333', fontSize: '16px' }}>Monthly Sales Overview</h3>
           {chartLoading ? (
-            <div style={{ height: '200px', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#888' }}>
+            <div style={{ height: '180px', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#888' }}>
               Loading chart data...
             </div>
           ) : (
-            <div style={{ display: 'flex', alignItems: 'flex-end', height: '200px', gap: '12px' }}>
-              {/* Previous 6 Months (oldest to newest: Jul 2025 -> Dec 2025) */}
+            <div style={{ 
+              display: 'flex', 
+              alignItems: 'flex-end', 
+              height: '180px', 
+              gap: screenSize.isMobile ? '6px' : '12px',
+              // overflowX: 'auto',
+              paddingBottom: '8px',
+            }}>
               {chartData.filter(d => d.type !== 'current').map((data, index) => (
-                <div key={index} style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', position: 'relative' }}>
+                <div key={index} style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', position: 'relative', minWidth: screenSize.isMobile ? '40px' : 'auto' }}>
                   <HoverTooltip 
                     content={`${data.month} ${data.year}: ₱${data.sales.toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`}
                   >
@@ -632,7 +702,7 @@ const DashboardPage = () => {
                       className="sales-bar"
                       style={{
                         width: '100%',
-                        height: `${Math.max((data.sales / (Math.max(...chartData.map(d => d.sales)) || 1)) * 180, 10)}px`,
+                        height: `${Math.max((data.sales / (Math.max(...chartData.map(d => d.sales)) || 1)) * 160, 10)}px`,
                         backgroundColor: '#00d9ff',
                         borderRadius: '6px 6px 0 0',
                         transition: 'all 0.3s ease',
@@ -648,12 +718,11 @@ const DashboardPage = () => {
                       }}
                     />
                   </HoverTooltip>
-                  <span style={{ marginTop: '8px', fontSize: '12px', color: '#666' }}>{data.month} {data.year}</span>
+                  <span style={{ marginTop: '8px', fontSize: screenSize.isMobile ? '10px' : '12px', color: '#666' }}>{data.month.substring(0, 3)}</span>
                 </div>
               ))}
-              {/* Current Month Bar (January 2026) - shown last */}
               {chartData.length > 0 && chartData.find(d => d.type === 'current') && (
-                <div style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', position: 'relative' }}>
+                <div style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', position: 'relative', minWidth: screenSize.isMobile ? '40px' : 'auto' }}>
                   <HoverTooltip 
                     content={`${chartData.find(d => d.type === 'current').month} ${chartData.find(d => d.type === 'current').year}: ₱${chartData.find(d => d.type === 'current').sales.toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`}
                   >
@@ -661,7 +730,7 @@ const DashboardPage = () => {
                       className="sales-bar"
                       style={{
                         width: '100%',
-                        height: `${Math.max((chartData.find(d => d.type === 'current').sales / (Math.max(...chartData.map(d => d.sales)) || 1)) * 180, 10)}px`,
+                        height: `${Math.max((chartData.find(d => d.type === 'current').sales / (Math.max(...chartData.map(d => d.sales)) || 1)) * 160, 10)}px`,
                         backgroundColor: '#28a745',
                         borderRadius: '6px 6px 0 0',
                         transition: 'all 0.3s ease',
@@ -677,7 +746,7 @@ const DashboardPage = () => {
                       }}
                     />
                   </HoverTooltip>
-                  <span style={{ marginTop: '8px', fontSize: '12px', color: '#666', fontWeight: 'bold' }}>{chartData.find(d => d.type === 'current').month} {chartData.find(d => d.type === 'current').year}</span>
+                  <span style={{ marginTop: '8px', fontSize: screenSize.isMobile ? '10px' : '12px', color: '#666', fontWeight: 'bold' }}>{chartData.find(d => d.type === 'current').month.substring(0, 3)}</span>
                 </div>
               )}
             </div>
@@ -688,19 +757,25 @@ const DashboardPage = () => {
         <div style={{
           backgroundColor: '#fff',
           borderRadius: '12px',
-          padding: '24px',
+          padding: '20px',
           boxShadow: '0 2px 8px rgba(0,0,0,0.08)',
         }}>
-          <h3 style={{ margin: '0 0 20px 0', color: '#333' }}>Monthly Orders</h3>
+          <h3 style={{ margin: '0 0 16px 0', color: '#333', fontSize: '16px' }}>Monthly Orders</h3>
           {monthlyOrdersLoading ? (
-            <div style={{ height: '200px', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#888' }}>
+            <div style={{ height: '180px', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#888' }}>
               Loading chart data...
             </div>
           ) : (
-            <div style={{ display: 'flex', alignItems: 'flex-end', height: '200px', gap: '12px' }}>
-              {/* Previous 6 Months (oldest to newest: Jul 2025 -> Dec 2025) */}
+            <div style={{ 
+              display: 'flex', 
+              alignItems: 'flex-end', 
+              height: '180px', 
+              gap: screenSize.isMobile ? '6px' : '12px',
+              // overflowX: 'auto',
+              paddingBottom: '8px',
+            }}>
               {monthlyOrdersData.filter(d => d.type !== 'current').map((data, index) => (
-                <div key={index} style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', position: 'relative' }}>
+                <div key={index} style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', position: 'relative', minWidth: screenSize.isMobile ? '40px' : 'auto' }}>
                   <HoverTooltip 
                     content={`${data.month} ${data.year}: ${data.orders} orders`}
                   >
@@ -708,7 +783,7 @@ const DashboardPage = () => {
                       className="orders-bar"
                       style={{
                         width: '100%',
-                        height: `${Math.max((data.orders / (Math.max(...monthlyOrdersData.map(d => d.orders)) || 1)) * 180, 10)}px`,
+                        height: `${Math.max((data.orders / (Math.max(...monthlyOrdersData.map(d => d.orders)) || 1)) * 160, 10)}px`,
                         backgroundColor: '#6c5ce7',
                         borderRadius: '6px 6px 0 0',
                         transition: 'all 0.3s ease',
@@ -724,12 +799,11 @@ const DashboardPage = () => {
                       }}
                     />
                   </HoverTooltip>
-                  <span style={{ marginTop: '8px', fontSize: '12px', color: '#666' }}>{data.month} {data.year}</span>
+                  <span style={{ marginTop: '8px', fontSize: screenSize.isMobile ? '10px' : '12px', color: '#666' }}>{data.month.substring(0, 3)}</span>
                 </div>
               ))}
-              {/* Current Month Bar - shown last */}
               {monthlyOrdersData.length > 0 && monthlyOrdersData.find(d => d.type === 'current') && (
-                <div style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', position: 'relative' }}>
+                <div style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', position: 'relative', minWidth: screenSize.isMobile ? '40px' : 'auto' }}>
                   <HoverTooltip 
                     content={`${monthlyOrdersData.find(d => d.type === 'current').month} ${monthlyOrdersData.find(d => d.type === 'current').year}: ${monthlyOrdersData.find(d => d.type === 'current').orders} orders`}
                   >
@@ -737,7 +811,7 @@ const DashboardPage = () => {
                       className="orders-bar"
                       style={{
                         width: '100%',
-                        height: `${Math.max((monthlyOrdersData.find(d => d.type === 'current').orders / (Math.max(...monthlyOrdersData.map(d => d.orders)) || 1)) * 180, 10)}px`,
+                        height: `${Math.max((monthlyOrdersData.find(d => d.type === 'current').orders / (Math.max(...monthlyOrdersData.map(d => d.orders)) || 1)) * 160, 10)}px`,
                         backgroundColor: '#28a745',
                         borderRadius: '6px 6px 0 0',
                         transition: 'all 0.3s ease',
@@ -753,7 +827,7 @@ const DashboardPage = () => {
                       }}
                     />
                   </HoverTooltip>
-                  <span style={{ marginTop: '8px', fontSize: '12px', color: '#666', fontWeight: 'bold' }}>{monthlyOrdersData.find(d => d.type === 'current').month} {monthlyOrdersData.find(d => d.type === 'current').year}</span>
+                  <span style={{ marginTop: '8px', fontSize: screenSize.isMobile ? '10px' : '12px', color: '#666', fontWeight: 'bold' }}>{monthlyOrdersData.find(d => d.type === 'current').month.substring(0, 3)}</span>
                 </div>
               )}
             </div>
@@ -764,12 +838,12 @@ const DashboardPage = () => {
         <div style={{
           backgroundColor: '#fff',
           borderRadius: '12px',
-          padding: '24px',
+          padding: '20px',
           boxShadow: '0 2px 8px rgba(0,0,0,0.08)',
-          gridColumn: 'span 2',
+          gridColumn: screenSize.isMobile ? 'span 1' : 'span 2',
         }}>
-          <h3 style={{ margin: '0 0 20px 0', color: '#333' }}>Recent Activity</h3>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+          <h3 style={{ margin: '0 0 16px 0', color: '#333', fontSize: '16px' }}>Recent Activity</h3>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
             {[
               { time: '10 mins ago', action: 'New order #1248 received from ABC Corp', type: 'order' },
               { time: '25 mins ago', action: 'MR Stock updated: +15 units added', type: 'stock' },
@@ -780,9 +854,11 @@ const DashboardPage = () => {
               <div key={index} style={{
                 display: 'flex',
                 alignItems: 'center',
-                padding: '12px',
+                padding: '10px',
                 backgroundColor: '#f8f9fa',
                 borderRadius: '8px',
+                flexWrap: 'wrap',
+                gap: '8px',
               }}>
                 <div style={{
                   width: '8px',
@@ -792,10 +868,11 @@ const DashboardPage = () => {
                                    activity.type === 'stock' ? '#00d9ff' : 
                                    activity.type === 'invoice' ? '#6c5ce7' : 
                                    activity.type === 'alert' ? '#ffc107' : '#17a2b8',
-                  marginRight: '12px',
+                  marginRight: '10px',
+                  flexShrink: 0,
                 }}></div>
-                <span style={{ flex: 1, color: '#333' }}>{activity.action}</span>
-                <span style={{ color: '#888', fontSize: '13px' }}>{activity.time}</span>
+                <span style={{ flex: 1, color: '#333', fontSize: '13px', minWidth: '150px' }}>{activity.action}</span>
+                <span style={{ color: '#888', fontSize: '12px', flexShrink: 0 }}>{activity.time}</span>
               </div>
             ))}
           </div>
@@ -805,14 +882,27 @@ const DashboardPage = () => {
         <div style={{ 
           backgroundColor: '#fff',
           borderRadius: '12px',
-          padding: '24px',
+          padding: screenSize.isMobile ? '16px' : '24px',
           boxShadow: '0 2px 8px rgba(0,0,0,0.08)',
           marginTop: '20px',
-          gridColumn: 'span 2',
+          gridColumn: screenSize.isMobile ? 'span 1' : 'span 2',
+          overflow: 'hidden',
         }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px', flexWrap: 'wrap', gap: '12px' }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-              <h3 style={{ margin: '0', color: '#333' }}>🔴 Critical Stock Alert</h3>
+          <div style={{ 
+            display: 'flex', 
+            justifyContent: 'space-between', 
+            alignItems: 'center', 
+            marginBottom: '16px', 
+            flexWrap: 'wrap', 
+            gap: '12px' 
+          }}>
+            <div style={{ 
+              display: 'flex', 
+              alignItems: 'center', 
+              gap: '12px', 
+              flexWrap: 'wrap' 
+            }}>
+              <h3 style={{ margin: 0, color: '#333', fontSize: '16px' }}>🔴 Critical Stock Alert</h3>
               <select
                 value={warehouseFilter}
                 onChange={(e) => {
@@ -820,98 +910,50 @@ const DashboardPage = () => {
                   setWarehouseFilter(e.target.value);
                 }}
                 style={{ 
-                  padding: '6px 12px', 
+                  padding: '6px 10px', 
                   borderRadius: '6px', 
                   border: '1px solid #ddd',
                   fontSize: '13px',
                   cursor: 'pointer',
                 }}
               >
-                <option value="M1">M1 - Main Warehouse</option>
-                <option value="M2">M2 - Daet Warehouse</option>
+                <option value="M1">M1 - Main</option>
+                <option value="M2">M2 - Daet</option>
               </select>
             </div>
-            <div style={{ display: 'flex', gap: '12px', alignItems: 'center' }}>
-              <button
-                onClick={() => setStatusFilter('All')}
-                style={{ 
-                  padding: '4px 12px', 
-                  borderRadius: '20px', 
-                  fontSize: '12px', 
-                  fontWeight: '600',
-                  backgroundColor: statusFilter === 'All' ? '#333' : '#6c757d', 
-                  color: '#fff',
-                  border: 'none',
-                  cursor: 'pointer',
-                  transition: 'all 0.2s ease',
-                }}
-              >
-                All: {criticalStock.length}
-              </button>
-              <button
-                onClick={() => setStatusFilter('No Stock')}
-                style={{ 
-                  padding: '4px 12px', 
-                  borderRadius: '20px', 
-                  fontSize: '12px', 
-                  fontWeight: '600',
-                  backgroundColor: statusFilter === 'No Stock' ? '#333' : '#dc3545', 
-                  color: '#fff',
-                  border: 'none',
-                  cursor: 'pointer',
-                  transition: 'all 0.2s ease',
-                }}
-              >
-                No Stock: {getStatusCount('No Stock')}
-              </button>
-              <button
-                onClick={() => setStatusFilter('Critical')}
-                style={{ 
-                  padding: '4px 12px', 
-                  borderRadius: '20px', 
-                  fontSize: '12px', 
-                  fontWeight: '600',
-                  backgroundColor: statusFilter === 'Critical' ? '#333' : '#fd7e14', 
-                  color: '#fff',
-                  border: 'none',
-                  cursor: 'pointer',
-                  transition: 'all 0.2s ease',
-                }}
-              >
-                Critical: {getStatusCount('Critical')}
-              </button>
-              <button
-                onClick={() => setStatusFilter('Low')}
-                style={{ 
-                  padding: '4px 12px', 
-                  borderRadius: '20px', 
-                  fontSize: '12px', 
-                  fontWeight: '600',
-                  backgroundColor: statusFilter === 'Low' ? '#333' : '#ffc107', 
-                  color: statusFilter === 'Low' ? '#fff' : '#333',
-                  border: 'none',
-                  cursor: 'pointer',
-                  transition: 'all 0.2s ease',
-                }}
-              >
-                Low: {getStatusCount('Low')}
-              </button>
-              <button
-                onClick={() => setStatusFilter('Warning')}
-                style={{ 
-                  padding: '4px 12px', 
-                  borderRadius: '20px', 
-                  fontSize: '12px', 
-                  fontWeight: '600',
-                  backgroundColor: statusFilter === 'Warning' ? '#333' : '#17a2b8', 
-                  color: '#fff',
-                  border: 'none',
-                  cursor: 'pointer',
-                  transition: 'all 0.2s ease',
-                }}
-              >
-                Warning: {getStatusCount('Warning')}
-              </button>
+            <div style={{ 
+              display: 'flex', 
+              gap: '8px', 
+              alignItems: 'center', 
+              flexWrap: 'wrap' 
+            }}>
+              {['All', 'No Stock', 'Critical', 'Low', 'Warning'].map(status => (
+                <button
+                  key={status}
+                  onClick={() => setStatusFilter(status)}
+                  style={{ 
+                    padding: '4px 10px', 
+                    borderRadius: '20px', 
+                    fontSize: '11px', 
+                    fontWeight: '600',
+                    backgroundColor: statusFilter === status ? '#333' : 
+                      status === 'All' ? '#6c757d' :
+                      status === 'No Stock' ? '#dc3545' :
+                      status === 'Critical' ? '#fd7e14' :
+                      status === 'Low' ? '#ffc107' : '#17a2b8', 
+                    color: status === 'Low' ? '#333' : '#fff',
+                    border: 'none',
+                    cursor: 'pointer',
+                    transition: 'all 0.2s ease',
+                  }}
+                >
+                  {status === 'All' ? `All: ${criticalStock.length}` : 
+                   status === 'No Stock' ? `No: ${getStatusCount('No Stock')}` :
+                   status === 'Critical' ? `Crit: ${getStatusCount('Critical')}` :
+                   status === 'Low' ? `Low: ${getStatusCount('Low')}` :
+                   `Warn: ${getStatusCount('Warning')}`}
+                </button>
+              ))}
             </div>
           </div>
           
@@ -921,11 +963,11 @@ const DashboardPage = () => {
             <p style={{ color: '#28a745', textAlign: 'center', padding: '40px', fontWeight: '500' }}>✅ No critical stock items! All items have sufficient stock.</p>
           ) : (
             <div style={{ overflowX: 'auto' }}>
-              <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+              <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: '600px' }}>
                 <thead>
                   <tr style={{ borderBottom: '2px solid #e9ecef' }}>
                     <th style={{ padding: '12px 16px', textAlign: 'left', color: '#555', fontWeight: '600', fontSize: '13px' }}>Stock Code</th>
-                    <th style={{ padding: '12px 16px', textAlign: 'left', color: '#555', fontWeight: '600', fontSize: '13px' }}>Description</th>
+                    <th className='hide-mobile' style={{ padding: '12px 16px', textAlign: 'left', color: '#555', fontWeight: '600', fontSize: '13px' } }>Description</th>
                     <th style={{ padding: '12px 16px', textAlign: 'center', color: '#555', fontWeight: '600', fontSize: '13px' }}>Warehouse</th>
                     <th style={{ padding: '12px 16px', textAlign: 'center', color: '#555', fontWeight: '600', fontSize: '13px' }}>On Hand</th>
                     <th style={{ padding: '12px 16px', textAlign: 'center', color: '#555', fontWeight: '600', fontSize: '13px' }}>Status</th>
@@ -935,7 +977,7 @@ const DashboardPage = () => {
                   {getFilteredItems().map((item, index) => (
                     <tr key={index} style={{ borderBottom: '1px solid #e9ecef', backgroundColor: index % 2 === 0 ? '#fff' : '#f8f9fa' }}>
                       <td style={{ padding: '12px 16px', color: '#333', fontWeight: '500' }}>{item.StockCode}</td>
-                      <td style={{ padding: '12px 16px', color: '#555', maxWidth: '300px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                      <td style={{ padding: '12px 16px', color: '#555', maxWidth: '200px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                         {item.Description}
                       </td>
                       <td style={{ padding: '12px 16px', textAlign: 'center', color: '#555' }}>{item.Warehouse}</td>
@@ -979,11 +1021,12 @@ const DashboardPage = () => {
           justifyContent: 'center',
           alignItems: 'center',
           zIndex: 1000,
+          padding: screenSize.isMobile ? '10px' : '20px',
         }}>
           <div style={{
             backgroundColor: '#fff',
             borderRadius: '12px',
-            width: '90%',
+            width: '100%',
             maxWidth: '1000px',
             maxHeight: '90vh',
             overflow: 'hidden',
@@ -1000,7 +1043,7 @@ const DashboardPage = () => {
               flexWrap: 'wrap',
               gap: '12px',
             }}>
-              <h2 style={{ margin: 0, color: '#333' }}>
+              <h2 style={{ margin: 0, color: '#333', fontSize: screenSize.isMobile ? '18px' : '20px' }}>
                 {selectedOrder ? `Sales Order Details: ${selectedOrder}` : `Pending Sales Orders - This Month (${pendingTotal})`}
               </h2>
               <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
@@ -1016,7 +1059,7 @@ const DashboardPage = () => {
                         border: '1px solid #ddd',
                         borderRadius: '6px',
                         fontSize: '14px',
-                        width: '200px',
+                        width: screenSize.isMobile ? '120px' : '200px',
                       }}
                     />
                     <button 
@@ -1080,7 +1123,7 @@ const DashboardPage = () => {
                       borderRadius: '8px',
                       marginBottom: '20px',
                       display: 'grid',
-                      gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))',
+                      gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))',
                       gap: '12px',
                     }}>
                       <div><strong>Customer:</strong> {orderDetails.header?.Customer}</div>
@@ -1094,7 +1137,7 @@ const DashboardPage = () => {
                     {/* Line Items Table */}
                     <h3 style={{ marginBottom: '12px', color: '#333' }}>Line Items</h3>
                     <div style={{ overflowX: 'auto' }}>
-                      <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+                      <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: '600px' }}>
                         <thead>
                           <tr style={{ borderBottom: '2px solid #e9ecef' }}>
                             <th style={{ padding: '12px', textAlign: 'left' }}>Stock Code</th>
@@ -1109,7 +1152,7 @@ const DashboardPage = () => {
                           {orderDetails.lineItems.map((item, idx) => (
                             <tr key={idx} style={{ borderBottom: '1px solid #e9ecef' }}>
                               <td style={{ padding: '12px' }}>{item.StockCode}</td>
-                              <td style={{ padding: '12px', maxWidth: '300px' }}>{item.Description}</td>
+                              <td style={{ padding: '12px', maxWidth: '200px' }}>{item.Description}</td>
                               <td style={{ padding: '12px', textAlign: 'right' }}>{item.OrderQty}</td>
                               <td style={{ padding: '12px', textAlign: 'right' }}>{parseFloat(item.Price || 0).toFixed(2)}</td>
                               <td style={{ padding: '12px', textAlign: 'right' }}>{parseFloat(item.LineValue || 0).toFixed(2)}</td>
@@ -1146,7 +1189,7 @@ const DashboardPage = () => {
                 ) : (
                   <>
                     <div style={{ overflowX: 'auto' }}>
-                      <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+                      <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: '600px' }}>
                         <thead>
                           <tr style={{ borderBottom: '2px solid #e9ecef' }}>
                             <th style={{ padding: '12px', textAlign: 'left' }}>Sales Order</th>
@@ -1176,7 +1219,7 @@ const DashboardPage = () => {
                             >
                               <td style={{ padding: '12px', color: '#007bff', fontWeight: '500' }}>{order.SalesOrder}</td>
                               <td style={{ padding: '12px' }}>{order.Customer}</td>
-                              <td style={{ padding: '12px', maxWidth: '200px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                              <td style={{ padding: '12px', maxWidth: '150px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                                 {order.CustomerName}
                               </td>
                               <td style={{ padding: '12px' }}>{order.OrderDate}</td>
@@ -1209,6 +1252,7 @@ const DashboardPage = () => {
                         marginTop: '20px',
                         paddingTop: '16px',
                         borderTop: '1px solid #e9ecef',
+                        flexWrap: 'wrap',
                       }}>
                         <button
                           onClick={() => setPendingPage(p => Math.max(1, p - 1))}
@@ -1251,12 +1295,12 @@ const DashboardPage = () => {
                             padding: '8px 12px',
                             border: '1px solid #ddd',
                             borderRadius: '6px',
-                            marginLeft: '16px',
+                            marginLeft: '8px',
                           }}
                         >
-                          <option value={25}>25 per page</option>
-                          <option value={50}>50 per page</option>
-                          <option value={100}>100 per page</option>
+                          <option value={25}>25/page</option>
+                          <option value={50}>50/page</option>
+                          <option value={100}>100/page</option>
                         </select>
                       </div>
                     )}
@@ -1273,6 +1317,7 @@ const DashboardPage = () => {
 
 // MR Checker Page Component
 const MRCheckerPage = () => {
+  const screenSize = useScreenSize();
   const [data, setData] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -1284,7 +1329,6 @@ const MRCheckerPage = () => {
   const [toDate, setToDate] = useState('2026-01-12');
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedItem, setSelectedItem] = useState(null);
-  const [isMobile, setIsMobile] = useState(window.innerWidth < 768);
 
   // Fields to display in list view
   const listColumns = ['StockCode', 'Description', 'CS', 'PCS', 'Operator', 'DATE'];
@@ -1311,15 +1355,6 @@ const MRCheckerPage = () => {
     'DATE': 'Date',
     'CreditReason': 'Credit Reason'
   };
-
-  // Detect mobile screen
-  useEffect(() => {
-    const handleResize = () => {
-      setIsMobile(window.innerWidth < 768);
-    };
-    window.addEventListener('resize', handleResize);
-    return () => window.removeEventListener('resize', handleResize);
-  }, []);
 
   const formatNumber = (value, fractionDigits = 2) => {
     if (value === null || value === undefined || value === '') return 'N/A';
@@ -1386,56 +1421,62 @@ const MRCheckerPage = () => {
   const closeModal = () => setSelectedItem(null);
 
   return (
-    <div style={mainContentStyle}>
-      <h1 style={{ marginBottom: '30px', color: '#333', fontSize: '28px' }}>MR Stock Checker</h1>
+    <div style={{
+      ...mainContentStyle,
+      // marginLeft: screenSize.isMobile ? 0 : '250px',
+      // width: screenSize.isMobile ? '100%' : 'calc(100% - 250px)',
+      paddingTop: screenSize.isMobile ? '70px' : '20px',
+    }}>
+      <h1 style={{ marginBottom: '20px', color: '#333', fontSize: screenSize.isMobile ? '22px' : '28px' }}>MR Stock Checker</h1>
       
       {/* Filter Section */}
       <div style={{
         backgroundColor: '#fff',
         borderRadius: '12px',
-        padding: '24px',
+        padding: '20px',
         boxShadow: '0 2px 8px rgba(0,0,0,0.08)',
-        marginBottom: '24px',
+        marginBottom: '20px',
       }}>
-        <div style={{ display: 'flex', gap: '16px', alignItems: 'center', flexWrap: 'wrap' }}>
+        <div style={{ display: 'flex', gap: '12px', alignItems: 'center', flexWrap: 'wrap' }}>
           <div>
-            <label style={{ marginRight: '8px', color: '#555', fontWeight: '500' }}>From:</label>
+            <label style={{ marginRight: '8px', color: '#555', fontWeight: '500', fontSize: '13px' }}>From:</label>
             <input
               type="date"
               value={fromDate}
               onChange={(e) => setFromDate(e.target.value)}
-              style={{ padding: '8px 12px', borderRadius: '6px', border: '1px solid #ddd' }}
+              style={{ padding: '8px 10px', borderRadius: '6px', border: '1px solid #ddd', fontSize: '13px' }}
             />
           </div>
           <div>
-            <label style={{ marginRight: '8px', color: '#555', fontWeight: '500' }}>To:</label>
+            <label style={{ marginRight: '8px', color: '#555', fontWeight: '500', fontSize: '13px' }}>To:</label>
             <input
               type="date"
               value={toDate}
               onChange={(e) => setToDate(e.target.value)}
-              style={{ padding: '8px 12px', borderRadius: '6px', border: '1px solid #ddd' }}
+              style={{ padding: '8px 10px', borderRadius: '6px', border: '1px solid #ddd', fontSize: '13px' }}
             />
           </div>
           <div>
             <input
               type="text"
-              placeholder="Search Stock Code or Operator..."
+              placeholder="Search..."
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
               onKeyPress={(e) => e.key === 'Enter' && fetchData(1)}
-              style={{ padding: '8px 12px', borderRadius: '6px', border: '1px solid #ddd', width: '180px' }}
+              style={{ padding: '8px 12px', borderRadius: '6px', border: '1px solid #ddd', width: screenSize.isMobile ? '120px' : '180px', fontSize: '13px' }}
             />
           </div>
           <button
             onClick={() => fetchData(1)}
             style={{
-              padding: '10px 24px',
+              padding: '10px 20px',
               backgroundColor: '#6c5ce7',
               color: '#fff',
               border: 'none',
               borderRadius: '6px',
               cursor: 'pointer',
               fontWeight: '600',
+              fontSize: '13px',
             }}
           >
             Search
@@ -1443,23 +1484,24 @@ const MRCheckerPage = () => {
           <button
             onClick={fetchData}
             style={{
-              padding: '10px 24px',
+              padding: '10px 20px',
               backgroundColor: '#00d9ff',
               color: '#1a1a2e',
               border: 'none',
               borderRadius: '6px',
               cursor: 'pointer',
               fontWeight: '600',
+              fontSize: '13px',
             }}
           >
-            Filter
+            Refresh
           </button>
         </div>
       </div>
 
       {/* Pagination Info */}
-      {loading && <p>Loading...</p>}
-      {!loading && error && <p style={{ color: 'red' }}>{error}</p>}
+      {loading && <p style={{ textAlign: 'center', color: '#888' }}>Loading...</p>}
+      {!loading && error && <p style={{ color: 'red', textAlign: 'center' }}>{error}</p>}
       {!loading && !error && totalRecords > 0 && (
         <div style={{
           display: 'flex',
@@ -1467,26 +1509,26 @@ const MRCheckerPage = () => {
           alignItems: 'center',
           marginBottom: '16px',
           backgroundColor: '#fff',
-          padding: '16px 24px',
+          padding: '12px 20px',
           borderRadius: '8px',
           flexWrap: 'wrap',
           gap: '10px',
         }}>
-          <span style={{ color: '#555' }}>
-            Showing {((currentPage - 1) * pageSize) + 1}–{Math.min(currentPage * pageSize, totalRecords)} of {totalRecords} records
+          <span style={{ color: '#555', fontSize: '13px' }}>
+            Showing {((currentPage - 1) * pageSize) + 1}–{Math.min(currentPage * pageSize, totalRecords)} of {totalRecords}
           </span>
-          <div style={{ display: 'flex', gap: '12px', alignItems: 'center' }}>
-            <span style={{ color: '#555' }}>Rows:</span>
+          <div style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
+            <span style={{ color: '#555', fontSize: '13px' }}>Rows:</span>
             <select
               value={pageSize}
               onChange={handleRowsChange}
-              style={{ padding: '6px 12px', borderRadius: '6px', border: '1px solid #ddd' }}
+              style={{ padding: '6px 10px', borderRadius: '6px', border: '1px solid #ddd', fontSize: '13px' }}
             >
               {[30, 50, 100].map(size => <option key={size} value={size}>{size}</option>)}
             </select>
-            <button onClick={handlePrevPage} disabled={currentPage === 1} style={{ padding: '6px 12px' }}>Prev</button>
-            <span>{currentPage} / {Math.max(totalPages, 1)}</span>
-            <button onClick={handleNextPage} disabled={currentPage === totalPages} style={{ padding: '6px 12px' }}>Next</button>
+            <button onClick={handlePrevPage} disabled={currentPage === 1} style={{ padding: '6px 12px', fontSize: '13px' }}>Prev</button>
+            <span style={{ fontSize: '13px' }}>{currentPage} / {Math.max(totalPages, 1)}</span>
+            <button onClick={handleNextPage} disabled={currentPage === totalPages} style={{ padding: '6px 12px', fontSize: '13px' }}>Next</button>
           </div>
         </div>
       )}
@@ -1500,7 +1542,7 @@ const MRCheckerPage = () => {
           overflow: 'hidden',
         }}>
           {/* List Header - hidden on mobile */}
-          {!isMobile && (
+          {!screenSize.isMobile && (
             <div style={{ 
               display: 'grid', 
               gridTemplateColumns: '1.5fr 2.5fr 0.8fr 0.8fr 1fr 1fr',
@@ -1509,6 +1551,7 @@ const MRCheckerPage = () => {
               borderBottom: '2px solid #e9ecef',
               fontWeight: '600',
               color: '#333',
+              fontSize: '13px',
             }}>
               {listColumns.map(col => (
                 <div key={col}>{columnLabels[col] || col}</div>
@@ -1523,7 +1566,7 @@ const MRCheckerPage = () => {
                 key={rowIndex}
                 onClick={() => openModal(item)}
                 style={{
-                  padding: isMobile ? '16px' : '14px 20px',
+                  padding: screenSize.isMobile ? '16px' : '14px 20px',
                   borderBottom: '1px solid #e9ecef',
                   cursor: 'pointer',
                   transition: 'background-color 0.2s ease',
@@ -1531,17 +1574,17 @@ const MRCheckerPage = () => {
                 onMouseEnter={(e) => e.currentTarget.style.backgroundColor = '#f8f9fa'}
                 onMouseLeave={(e) => e.currentTarget.style.backgroundColor = '#fff'}
               >
-                {isMobile ? (
+                {screenSize.isMobile ? (
                   // Mobile card view
                   <div>
                     <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '8px' }}>
-                      <span style={{ fontWeight: '600', color: '#333' }}>{item.StockCode}</span>
+                      <span style={{ fontWeight: '600', color: '#333', fontSize: '14px' }}>{item.StockCode}</span>
                       <span style={{ color: '#888', fontSize: '12px' }}>{item.DATE}</span>
                     </div>
-                    <div style={{ color: '#555', marginBottom: '8px', fontSize: '14px' }}>
-                      {item.Description?.length > 50 ? item.Description.substring(0, 50) + '...' : item.Description}
+                    <div style={{ color: '#555', marginBottom: '8px', fontSize: '13px' }}>
+                      {item.Description?.length > 40 ? item.Description.substring(0, 40) + '...' : item.Description}
                     </div>
-                    <div style={{ display: 'flex', gap: '16px', fontSize: '13px', color: '#888' }}>
+                    <div style={{ display: 'flex', gap: '12px', fontSize: '12px', color: '#888' }}>
                       <span>CS: {formatNumber(item.CS, 0)}</span>
                       <span>PCS: {formatNumber(item.PCS, 0)}</span>
                       <span>{item.Operator}</span>
@@ -1552,6 +1595,7 @@ const MRCheckerPage = () => {
                   <div style={{ 
                     display: 'grid', 
                     gridTemplateColumns: '1.5fr 2.5fr 0.8fr 0.8fr 1fr 1fr',
+                    fontSize: '13px',
                   }}>
                     {listColumns.map(col => {
                       let value = item[col];
@@ -1605,7 +1649,7 @@ const MRCheckerPage = () => {
             onClick={(e) => e.stopPropagation()}
           >
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
-              <h2 style={{ margin: 0, color: '#333', fontSize: isMobile ? '20px' : '24px' }}>Item Details</h2>
+              <h2 style={{ margin: 0, color: '#333', fontSize: screenSize.isMobile ? '18px' : '20px' }}>Item Details</h2>
               <button
                 onClick={closeModal}
                 style={{
@@ -1621,7 +1665,7 @@ const MRCheckerPage = () => {
               </button>
             </div>
             
-            <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr', gap: '12px' }}>
+            <div style={{ display: 'grid', gridTemplateColumns: screenSize.isMobile ? '1fr' : '1fr 1fr', gap: '10px' }}>
               {allColumns.map(col => {
                 let value = selectedItem[col];
                 let displayValue = value;
@@ -1630,15 +1674,15 @@ const MRCheckerPage = () => {
                 if (value === null || value === undefined) displayValue = 'N/A';
                 
                 return (
-                  <div key={col} style={{ padding: '12px', backgroundColor: '#f8f9fa', borderRadius: '8px' }}>
-                    <div style={{ fontSize: '12px', color: '#888', marginBottom: '4px' }}>{columnLabels[col] || col}</div>
-                    <div style={{ color: '#333', fontWeight: '500', wordBreak: 'break-word' }}>{displayValue}</div>
+                  <div key={col} style={{ padding: '10px', backgroundColor: '#f8f9fa', borderRadius: '8px' }}>
+                    <div style={{ fontSize: '11px', color: '#888', marginBottom: '4px' }}>{columnLabels[col] || col}</div>
+                    <div style={{ color: '#333', fontWeight: '500', wordBreak: 'break-word', fontSize: '13px' }}>{displayValue}</div>
                   </div>
                 );
               })}
             </div>
             
-            <div style={{ marginTop: '24px', textAlign: 'right' }}>
+            <div style={{ marginTop: '20px', textAlign: 'right' }}>
               <button
                 onClick={closeModal}
                 style={{
@@ -1663,6 +1707,7 @@ const MRCheckerPage = () => {
 
 // Inventory Page Component - All Stock Checker Inventory
 const InventoryPage = () => {
+  const screenSize = useScreenSize();
   const [data, setData] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -1672,7 +1717,6 @@ const InventoryPage = () => {
   const [totalRecords, setTotalRecords] = useState(0);
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedItem, setSelectedItem] = useState(null);
-  const [isMobile, setIsMobile] = useState(window.innerWidth < 768);
   const [selectedWarehouse, setSelectedWarehouse] = useState('ALL');
   const [warehouses, setWarehouses] = useState([]);
 
@@ -1730,15 +1774,6 @@ const InventoryPage = () => {
     'IB/Cs': 'IB/CS',
     'Remarks': 'Remarks'
   };
-
-  // Detect mobile screen
-  useEffect(() => {
-    const handleResize = () => {
-      setIsMobile(window.innerWidth < 768);
-    };
-    window.addEventListener('resize', handleResize);
-    return () => window.removeEventListener('resize', handleResize);
-  }, []);
 
   const formatNumber = (value, fractionDigits = 2) => {
     if (value === null || value === undefined || value === '') return 'N/A';
@@ -1804,18 +1839,23 @@ const InventoryPage = () => {
   const closeModal = () => setSelectedItem(null);
 
   return (
-    <div style={mainContentStyle}>
-      <h1 style={{ marginBottom: '30px', color: '#333', fontSize: '28px' }}>All Stock Checker Inventory</h1>
+    <div style={{
+      ...mainContentStyle,
+      // marginLeft: screenSize.isMobile ? 0 : '250px',
+      // width: screenSize.isMobile ? '100%' : 'calc(100% - 250px)',
+      paddingTop: screenSize.isMobile ? '70px' : '20px',
+    }}>
+      <h1 style={{ marginBottom: '20px', color: '#333', fontSize: screenSize.isMobile ? '22px' : '28px' }}>All Stock Checker Inventory</h1>
       
       {/* Filter Section */}
       <div style={{
         backgroundColor: '#fff',
         borderRadius: '12px',
-        padding: '24px',
+        padding: '20px',
         boxShadow: '0 2px 8px rgba(0,0,0,0.08)',
-        marginBottom: '24px',
+        marginBottom: '20px',
       }}>
-        <div style={{ display: 'flex', gap: '16px', alignItems: 'center', flexWrap: 'wrap' }}>
+        <div style={{ display: 'flex', gap: '12px', alignItems: 'center', flexWrap: 'wrap' }}>
           <div>
             <select
               value={selectedWarehouse}
@@ -1823,7 +1863,7 @@ const InventoryPage = () => {
                 setSelectedWarehouse(e.target.value);
                 fetchData(1);
               }}
-              style={{ padding: '8px 12px', borderRadius: '6px', border: '1px solid #ddd', minWidth: '180px' }}
+              style={{ padding: '8px 10px', borderRadius: '6px', border: '1px solid #ddd', minWidth: '150px', fontSize: '13px' }}
             >
               <option value="ALL">All Warehouses</option>
               {warehouses.map(wh => (
@@ -1834,23 +1874,24 @@ const InventoryPage = () => {
           <div>
             <input
               type="text"
-              placeholder="Search Stock Code or Description..."
+              placeholder="Search Stock Code..."
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
               onKeyPress={(e) => e.key === 'Enter' && fetchData(1)}
-              style={{ padding: '8px 12px', borderRadius: '6px', border: '1px solid #ddd', width: '250px' }}
+              style={{ padding: '8px 12px', borderRadius: '6px', border: '1px solid #ddd', width: screenSize.isMobile ? '120px' : '200px', fontSize: '13px' }}
             />
           </div>
           <button
             onClick={() => fetchData(1)}
             style={{
-              padding: '10px 24px',
+              padding: '10px 20px',
               backgroundColor: '#6c5ce7',
               color: '#fff',
               border: 'none',
               borderRadius: '6px',
               cursor: 'pointer',
               fontWeight: '600',
+              fontSize: '13px',
             }}
           >
             Search
@@ -1858,13 +1899,14 @@ const InventoryPage = () => {
           <button
             onClick={fetchData}
             style={{
-              padding: '10px 24px',
+              padding: '10px 20px',
               backgroundColor: '#00d9ff',
               color: '#1a1a2e',
               border: 'none',
               borderRadius: '6px',
               cursor: 'pointer',
               fontWeight: '600',
+              fontSize: '13px',
             }}
           >
             Refresh
@@ -1873,8 +1915,8 @@ const InventoryPage = () => {
       </div>
 
       {/* Pagination Info */}
-      {loading && <p>Loading...</p>}
-      {!loading && error && <p style={{ color: 'red' }}>{error}</p>}
+      {loading && <p style={{ textAlign: 'center', color: '#888' }}>Loading...</p>}
+      {!loading && error && <p style={{ color: 'red', textAlign: 'center' }}>{error}</p>}
       {!loading && !error && totalRecords > 0 && (
         <div style={{
           display: 'flex',
@@ -1882,26 +1924,26 @@ const InventoryPage = () => {
           alignItems: 'center',
           marginBottom: '16px',
           backgroundColor: '#fff',
-          padding: '16px 24px',
+          padding: '12px 20px',
           borderRadius: '8px',
           flexWrap: 'wrap',
           gap: '10px',
         }}>
-          <span style={{ color: '#555' }}>
-            Showing {((currentPage - 1) * pageSize) + 1}–{Math.min(currentPage * pageSize, totalRecords)} of {totalRecords} records
+          <span style={{ color: '#555', fontSize: '13px' }}>
+            Showing {((currentPage - 1) * pageSize) + 1}–{Math.min(currentPage * pageSize, totalRecords)} of {totalRecords}
           </span>
-          <div style={{ display: 'flex', gap: '12px', alignItems: 'center' }}>
-            <span style={{ color: '#555' }}>Rows:</span>
+          <div style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
+            <span style={{ color: '#555', fontSize: '13px' }}>Rows:</span>
             <select
               value={pageSize}
               onChange={handleRowsChange}
-              style={{ padding: '6px 12px', borderRadius: '6px', border: '1px solid #ddd' }}
+              style={{ padding: '6px 10px', borderRadius: '6px', border: '1px solid #ddd', fontSize: '13px' }}
             >
               {[50, 100, 200, 500].map(size => <option key={size} value={size}>{size}</option>)}
             </select>
-            <button onClick={handlePrevPage} disabled={currentPage === 1} style={{ padding: '6px 12px' }}>Prev</button>
-            <span>{currentPage} / {Math.max(totalPages, 1)}</span>
-            <button onClick={handleNextPage} disabled={currentPage === totalPages} style={{ padding: '6px 12px' }}>Next</button>
+            <button onClick={handlePrevPage} disabled={currentPage === 1} style={{ padding: '6px 12px', fontSize: '13px' }}>Prev</button>
+            <span style={{ fontSize: '13px' }}>{currentPage} / {Math.max(totalPages, 1)}</span>
+            <button onClick={handleNextPage} disabled={currentPage === totalPages} style={{ padding: '6px 12px', fontSize: '13px' }}>Next</button>
           </div>
         </div>
       )}
@@ -1915,7 +1957,7 @@ const InventoryPage = () => {
           overflow: 'hidden',
         }}>
           {/* List Header - hidden on mobile */}
-          {!isMobile && (
+          {!screenSize.isMobile && (
             <div style={{ 
               display: 'grid', 
               gridTemplateColumns: selectedWarehouse === 'ALL' 
@@ -1926,6 +1968,7 @@ const InventoryPage = () => {
               borderBottom: '2px solid #dee2e6',
               fontWeight: '600',
               color: '#333',
+              fontSize: '13px',
             }}>
               {listColumns.map(col => {
                 const isNumeric = ['OnHandCS', 'OnHandPcs', 'StockFreeCS', 'StockFreePCS'].includes(col);
@@ -1946,7 +1989,7 @@ const InventoryPage = () => {
                 key={rowIndex}
                 onClick={() => openModal(item)}
                 style={{
-                  padding: isMobile ? '16px' : '14px 20px',
+                  padding: screenSize.isMobile ? '16px' : '14px 20px',
                   borderBottom: '1px solid #dee2e6',
                   cursor: 'pointer',
                   transition: 'background-color 0.15s ease',
@@ -1955,19 +1998,19 @@ const InventoryPage = () => {
                 onMouseEnter={(e) => e.currentTarget.style.backgroundColor = '#e3f2fd'}
                 onMouseLeave={(e) => e.currentTarget.style.backgroundColor = rowIndex % 2 === 0 ? '#fff' : '#f8f9fa'}
               >
-                {isMobile ? (
+                {screenSize.isMobile ? (
                   // Mobile card view
                   <div>
                     <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '8px' }}>
-                      <span style={{ fontWeight: '600', color: '#333' }}>{item.StockCode}</span>
+                      <span style={{ fontWeight: '600', color: '#333', fontSize: '14px' }}>{item.StockCode}</span>
                       {selectedWarehouse === 'ALL' && (
                         <span style={{ color: '#888', fontSize: '12px' }}>{item.Warehouse}</span>
                       )}
                     </div>
-                    <div style={{ color: '#555', marginBottom: '8px', fontSize: '14px' }}>
-                      {item.Description?.length > 50 ? item.Description.substring(0, 50) + '...' : item.Description}
+                    <div style={{ color: '#555', marginBottom: '8px', fontSize: '13px' }}>
+                      {item.Description?.length > 40 ? item.Description.substring(0, 40) + '...' : item.Description}
                     </div>
-                    <div style={{ display: 'flex', gap: '16px', fontSize: '13px', color: '#888' }}>
+                    <div style={{ display: 'flex', gap: '12px', fontSize: '12px', color: '#888' }}>
                       <span>OH: {formatNumber(item.OnHandCS, 0)}/{formatNumber(item.OnHandPcs, 0)}</span>
                       <span>Free: {formatNumber(item.StockFreeCS, 0)}/{formatNumber(item.StockFreePCS, 0)}</span>
                     </div>
@@ -1980,6 +2023,7 @@ const InventoryPage = () => {
                       ? '1fr 3fr 0.7fr 0.7fr 0.7fr 0.7fr 0.7fr' 
                       : '1fr 3fr 0.8fr 0.8fr 0.8fr 0.8fr',
                     gap: '8px',
+                    fontSize: '13px',
                   }}>
                     {listColumns.map(col => {
                       let value = item[col];
@@ -2042,7 +2086,7 @@ const InventoryPage = () => {
             onClick={(e) => e.stopPropagation()}
           >
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
-              <h2 style={{ margin: 0, color: '#333', fontSize: isMobile ? '20px' : '24px' }}>Item Details</h2>
+              <h2 style={{ margin: 0, color: '#333', fontSize: screenSize.isMobile ? '18px' : '20px' }}>Item Details</h2>
               <button
                 onClick={closeModal}
                 style={{
@@ -2058,7 +2102,7 @@ const InventoryPage = () => {
               </button>
             </div>
             
-            <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr', gap: '12px' }}>
+            <div style={{ display: 'grid', gridTemplateColumns: screenSize.isMobile ? '1fr' : '1fr 1fr', gap: '10px' }}>
               {allColumns.map(col => {
                 let value = selectedItem[col];
                 let displayValue = value;
@@ -2067,15 +2111,15 @@ const InventoryPage = () => {
                 if (value === null || value === undefined) displayValue = 'N/A';
                 
                 return (
-                  <div key={col} style={{ padding: '12px', backgroundColor: '#f8f9fa', borderRadius: '8px' }}>
-                    <div style={{ fontSize: '12px', color: '#888', marginBottom: '4px' }}>{columnLabels[col] || col}</div>
-                    <div style={{ color: '#333', fontWeight: '500', wordBreak: 'break-word' }}>{displayValue}</div>
+                  <div key={col} style={{ padding: '10px', backgroundColor: '#f8f9fa', borderRadius: '8px' }}>
+                    <div style={{ fontSize: '11px', color: '#888', marginBottom: '4px' }}>{columnLabels[col] || col}</div>
+                    <div style={{ color: '#333', fontWeight: '500', wordBreak: 'break-word', fontSize: '13px' }}>{displayValue}</div>
                   </div>
                 );
               })}
             </div>
             
-            <div style={{ marginTop: '24px', textAlign: 'right' }}>
+            <div style={{ marginTop: '20px', textAlign: 'right' }}>
               <button
                 onClick={closeModal}
                 style={{
@@ -2099,59 +2143,97 @@ const InventoryPage = () => {
 };
 
 // Placeholder Page Component
-const PlaceholderPage = ({ title, description }) => (
-  <div style={mainContentStyle}>
-    <h1 style={{ marginBottom: '30px', color: '#333', fontSize: '28px' }}>{title}</h1>
+const PlaceholderPage = ({ title, description }) => {
+  const screenSize = useScreenSize();
+  return (
     <div style={{
-      backgroundColor: '#fff',
-      borderRadius: '12px',
-      padding: '60px',
-      boxShadow: '0 2px 8px rgba(0,0,0,0.08)',
-      textAlign: 'center',
+      ...mainContentStyle,
+      // marginLeft: screenSize.isMobile ? 0 : '250px',
+      // width: screenSize.isMobile ? '100%' : 'calc(100% - 250px)',
+      paddingTop: screenSize.isMobile ? '70px' : '20px',
     }}>
-      <div style={{ fontSize: '48px', marginBottom: '20px' }}>🚧</div>
-      <h2 style={{ color: '#333', marginBottom: '12px' }}>{title}</h2>
-      <p style={{ color: '#888' }}>{description}</p>
+      <h1 style={{ marginBottom: '20px', color: '#333', fontSize: screenSize.isMobile ? '22px' : '28px' }}>{title}</h1>
+      <div style={{
+        backgroundColor: '#fff',
+        borderRadius: '12px',
+        padding: screenSize.isMobile ? '30px' : '60px',
+        boxShadow: '0 2px 8px rgba(0,0,0,0.08)',
+        textAlign: 'center',
+      }}>
+        <div style={{ fontSize: '48px', marginBottom: '16px' }}>🚧</div>
+        <h2 style={{ color: '#333', marginBottom: '12px' }}>{title}</h2>
+        <p style={{ color: '#888' }}>{description}</p>
+      </div>
     </div>
-  </div>
-);
+  );
+};
 
 // Sidebar Component
-const Sidebar = () => {
+const Sidebar = ({ isOpen, onClose }) => {
   const location = useLocation();
+  const screenSize = useScreenSize();
+
+  // Close sidebar when navigating on mobile
+  const handleNavClick = () => {
+    if (screenSize.isMobile) {
+      onClose();
+    }
+  };
 
   return (
-    <nav style={sidebarStyle}>
-      <div style={{ padding: '0 24px', marginBottom: '30px' }}>
-        <h2 style={{ margin: 0, color: '#00d9ff', fontSize: '22px' }}>MTC Dashboard</h2>
-        <p style={{ margin: '8px 0 0 0', color: '#666', fontSize: '13px' }}>Management Tool</p>
-      </div>
+    <>
+      {/* Mobile overlay */}
+      {screenSize.isMobile && isOpen && (
+        <div 
+          onClick={onClose}
+          style={{
+            position: 'fixed',
+            top: 0,
+            left: 0,
+            right: 0,
+            bottom: 0,
+            backgroundColor: 'rgba(0,0,0,0.5)',
+            zIndex: 999,
+          }}
+        />
+      )}
+      <nav style={{
+        ...sidebarStyle,
+        transform: screenSize.isMobile ? (isOpen ? 'translateX(0)' : 'translateX(-100%)') : 'translateX(0)',
+      }}>
+        <div style={{ padding: '0 24px', marginBottom: '30px' }}>
+          <h2 style={{ margin: 0, color: '#00d9ff', fontSize: '22px' }}>MTC Dashboard</h2>
+          <p style={{ margin: '8px 0 0 0', color: '#666', fontSize: '13px' }}>Management Tool</p>
+        </div>
 
-      <div style={menuGroupStyle}>Main Menu</div>
-      <NavLink to="/" style={({ isActive }) => menuItemStyle(isActive)}>
-        📊 Dashboard
-      </NavLink>
-      <NavLink to="/mr-checker" style={({ isActive }) => menuItemStyle(isActive)}>
-        📦 MR Stock Checker
-      </NavLink>
-      <NavLink to="/inventory" style={({ isActive }) => menuItemStyle(isActive)}>
-        📋 Inventory
-      </NavLink>
+        <div style={menuGroupStyle}>Main Menu</div>
+        <NavLink to="/" style={({ isActive }) => menuItemStyle(isActive)} onClick={handleNavClick}>
+          📊 Dashboard
+        </NavLink>
+        <NavLink to="/mr-checker" style={({ isActive }) => menuItemStyle(isActive)} onClick={handleNavClick}>
+          📦 MR Stock Checker
+        </NavLink>
+        <NavLink to="/inventory" style={({ isActive }) => menuItemStyle(isActive)} onClick={handleNavClick}>
+          📋 Inventory
+        </NavLink>
 
-      <div style={menuGroupStyle}>Future Pages</div>
-      <NavLink to="/reports" style={({ isActive }) => menuItemStyle(isActive)}>
-        📈 Reports
-      </NavLink>
-      <NavLink to="/settings" style={({ isActive }) => menuItemStyle(isActive)}>
-        ⚙️ Settings
-      </NavLink>
-    </nav>
+        <div style={menuGroupStyle}>Future Pages</div>
+        <NavLink to="/reports" style={({ isActive }) => menuItemStyle(isActive)} onClick={handleNavClick}>
+          📈 Reports
+        </NavLink>
+        <NavLink to="/settings" style={({ isActive }) => menuItemStyle(isActive)} onClick={handleNavClick}>
+          ⚙️ Settings
+        </NavLink>
+      </nav>
+    </>
   );
 };
 
 // Main App Component
 function App() {
   const [isLoading, setIsLoading] = useState(true);
+  const [sidebarOpen, setSidebarOpen] = useState(false);
+  const screenSize = useScreenSize();
 
   useEffect(() => {
     // Reset loading on page refresh/navigation
@@ -2162,13 +2244,58 @@ function App() {
     return () => clearTimeout(timer);
   }, []);
 
+  // Close sidebar when switching to desktop
+  useEffect(() => {
+    if (!screenSize.isMobile) {
+      setSidebarOpen(false);
+    }
+  }, [screenSize.isMobile]);
+
   return (
     <>
       {isLoading && <TruckDeliveryLoading onComplete={() => setIsLoading(false)} />}
       <Router>
         <div style={{ display: 'flex', minHeight: '100vh' }}>
-          <Sidebar />
-          <div style={mainContentStyle}>
+          <Sidebar isOpen={sidebarOpen} onClose={() => setSidebarOpen(false)} />
+          
+          {/* Mobile Header with Hamburger Menu */}
+          {screenSize.isMobile && (
+            <div style={{
+              position: 'fixed',
+              top: 0,
+              left: 0,
+              right: 0,
+              height: '60px',
+              backgroundColor: '#1a1a2e',
+              display: 'flex',
+              alignItems: 'center',
+              padding: '0 16px',
+              zIndex: 998,
+            }}>
+              <button
+                onClick={() => setSidebarOpen(true)}
+                style={{
+                  background: 'none',
+                  border: 'none',
+                  color: '#fff',
+                  fontSize: '24px',
+                  cursor: 'pointer',
+                  padding: '8px',
+                  marginRight: '12px',
+                }}
+              >
+                ☰
+              </button>
+              <span style={{ color: '#00d9ff', fontSize: '18px', fontWeight: '600' }}>MTC Dashboard</span>
+            </div>
+          )}
+          
+          <div style={{
+            ...mainContentStyle,
+            marginLeft: screenSize.isMobile ? 0 : '250px',
+            // width: screenSize.isMobile ? '100%' : 'calc(100% - 250px)',
+            paddingTop: screenSize.isMobile ? '60px' : '20px',
+          }}>
             <Routes>
               <Route path="/" element={<DashboardPage />} />
               <Route path="/mr-checker" element={<MRCheckerPage />} />
