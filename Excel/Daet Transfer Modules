@@ -1,0 +1,86 @@
+Sub Search_Daet_Transfer()
+
+    '========================
+    ' ORIGINAL CODE
+    '========================
+
+    Dim con As Object
+    Dim rs As Object
+    Dim sql As String
+    Dim Server As String
+    Dim database As String
+    Dim strcon As String
+
+    Dim startDate As String
+    Dim endDate As String
+    
+    Dim ws As Worksheet
+    Dim lastRow As Long
+    
+    Set ws = Sheets("Daet Transfer")
+    
+    startDate = ws.Range("E3").Value
+    endDate = ws.Range("G3").Value
+
+    '========================
+    ' CLEAR OLD DATA (Row 8 down)
+    '========================
+    lastRow = ws.Cells(ws.Rows.Count, "A").End(xlUp).Row
+    
+    If lastRow >= 7 Then
+        ws.Range("A7:J" & lastRow).ClearContents
+    End If
+
+    ' === SERVER SETTINGS ===
+    Server = "Syspro"
+    database = "Enc_MTC_N"
+
+    ' === SQL QUERY ===
+    sql = _
+    "SELECT " & _
+        "imv.StockCode, " & _
+        "imv.Warehouse, " & _
+        "imv.EntryDate, " & _
+        "TP.TotalPCS / CAST(im.ConvFactAltUom AS int) AS CS, " & _
+        "TP.TotalPCS % CAST(im.ConvFactAltUom AS int) AS PCS, " & _
+        "imv.TrnValue, " & _
+        "imv.Journal, " & _
+        "imv.NewWarehouse, " & _
+        "imv.SalesOrder " & _
+    "FROM InvMovements imv " & _
+    "JOIN InvMaster im ON im.StockCode = imv.StockCode " & _
+    "CROSS APPLY ( " & _
+        "SELECT CAST(ROUND(ABS(imv.TrnQty) * im.ConvFactAltUom,0) AS int) AS TotalPCS " & _
+    ") TP " & _
+    "WHERE imv.Warehouse = 'M1' " & _
+    "AND imv.NewWarehouse IN ('M2','M4','MS') " & _
+    "AND imv.TrnType = 'T' " & _
+    "AND imv.EntryDate BETWEEN '" & startDate & "' AND '" & endDate & "' " & _
+    "ORDER BY imv.EntryDate ASC"
+
+    ' === CONNECTION STRING ===
+    strcon = "Provider=SQLOLEDB;" & _
+             "Data Source=" & Server & ";" & _
+             "Initial Catalog=" & database & ";" & _
+             "User ID=Impact_Services;Password=pass;" & _
+             "Trusted_Connection=no;"
+
+    ' === EXECUTE ===
+    Set con = CreateObject("ADODB.Connection")
+    Set rs = CreateObject("ADODB.Recordset")
+
+    con.Open strcon
+    rs.Open sql, con, 1, 1
+
+    '========================
+    ' OUTPUT DATA
+    '========================
+    ws.Range("A7").CopyFromRecordset rs
+    ws.Range("A3").Value = Now
+
+    rs.Close
+    con.Close
+
+    MsgBox "Data refreshed for Daet Transfer " & startDate & " to " & endDate, vbInformation
+
+End Sub

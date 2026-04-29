@@ -1,0 +1,80 @@
+Sub SearchSellIn()
+
+Dim database As String
+Dim Server As String
+Dim QUERY As String
+Dim StartDate As String
+Dim EndDate As String
+
+Dim con As ADODB.Connection
+Set con = New ADODB.Connection
+
+Dim rs As ADODB.Recordset
+Set rs = New ADODB.Recordset
+
+Set ws = ActiveSheet
+
+ ' Show all rows without removing the filter
+    On Error Resume Next
+    ws.AutoFilter.ShowAllData
+    On Error GoTo 0
+
+StartDate = Sheets("Sales Invoice").Range("G3").Value
+EndDate = Sheets("Sales Invoice").Range("I3").Value
+Sheets("Sales Invoice").Activate
+Range("B7:P100000").Select
+Selection.ClearContents
+
+Server = "SYSPRO"
+database = "Enc_MTC_N"
+
+strcon = "Provider=SQLOLEDB; " & _
+        "Data Source=" & Server & ";" & _
+        "initial Catalog=" & database & ";" & _
+        "User ID=Impact_Services; Password=pass; Trusted_Connection=no"
+        
+con.Open (strcon)
+
+  With rs
+  .ActiveConnection = con
+  .Open "/* </Tristan Vegas> */ SELECT     InvMovements.StockCode, InvMaster.Description, " & _
+                "CONVERT(varchar,InvMovements.EntryDate,101) as [DATE], " & _
+                "InvMovements.Warehouse, InvMovements.Reference, InvMovements.Supplier, " & _
+                "InvMovements.TrnValue, InvMovements.Journal, InvMovements.Job, " & _
+                "FLOOR(ABS(TrnQty)) AS TrnQtyCS, " & _
+                "ISNULL(FLOOR(ROUND((ABS(TrnQty) - CAST(FLOOR(ABS(TrnQty)) AS decimal(15, 2))) * CAST(InvMaster.ConvFactAltUom AS decimal(10, 2)), 0)), 0) AS TrnQtyPcs " & _
+    "FROM InvMovements INNER JOIN " & _
+                "InvMaster ON InvMovements.StockCode = InvMaster.StockCode " & _
+    "WHERE (InvMovements.Supplier NOT LIKE '') AND " & _
+                "(InvMovements.TrnType = 'R') AND " & _
+                "(InvMovements.Supplier NOT LIKE '') AND " & _
+                "InvMovements.EntryDate BETWEEN '" & StartDate & "' AND '" & EndDate & "' " & _
+    "ORDER BY InvMovements.EntryDate asc "
+
+Sheets("Sales Invoice").Range("B7").CopyFromRecordset rs
+
+ .Close
+End With
+
+con.Close
+
+Sheets("Sales Invoice").Activate
+Range("B7:B100000").Select
+    With Selection
+        .NumberFormat = "General"
+        .Value = .Value
+    End With
+    
+Range("F7:F100000").Select
+    With Selection
+        .NumberFormat = "General"
+        .Value = .Value
+        Sheets("Sales Invoice").Range("B4").Value = Now
+    End With
+
+ActiveWorkbook.RefreshAll
+      MsgBox "Fetched New Data"
+      
+      
+
+End Sub

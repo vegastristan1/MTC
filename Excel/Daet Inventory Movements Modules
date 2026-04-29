@@ -1,0 +1,171 @@
+Sub Search_Adjustment_Daet()
+
+    Dim con As Object
+    Dim rs As Object
+    Dim sql As String
+    Dim Server As String
+    Dim database As String
+    Dim strcon As String
+
+    Dim startDate As String
+    Dim endDate As String
+    
+    Dim ws As Worksheet
+    Dim lastRow As Long
+    
+    Set ws = Sheets("Adjustments-(Daet)")
+    
+    startDate = ws.Range("G3").Value
+    endDate = ws.Range("I3").Value
+
+    '========================
+    ' CLEAR OLD DATA (Row 8 down)
+    '========================
+    lastRow = ws.Cells(ws.Rows.Count, "A").End(xlUp).Row
+    
+    If lastRow >= 7 Then
+        ws.Range("A7:J" & lastRow).ClearContents
+    End If
+
+    ' === SERVER SETTINGS ===
+    Server = "Syspro"
+    database = "Enc_MTC_N"
+
+    ' === SQL QUERY ===
+    sql = _
+    "SELECT " & _
+        "im.StockCode, " & _
+        "im.Warehouse, " & _
+        "im.TrnYear, " & _
+        "im.EntryDate, " & _
+        "STUFF(STUFF(STUFF(RIGHT('00000000' + CAST(TrnTime AS varchar), 8), " & _
+            "3, 0, ':'), " & _
+            "6, 0, ':'), " & _
+            "9, 0, '.') AS AdjustmentTime, " & _
+        "im.TrnQty, " & _
+        "im.TrnValue, " & _
+        "im.Journal, " & _
+        "im.Reference, " & _
+        "ijd.Notation " & _
+    "FROM InvMovements im " & _
+    "LEFT JOIN InvJournalDet ijd " & _
+        "ON im.StockCode = ijd.StockCode " & _
+        "and im.Reference = ijd.Reference " & _
+    "WHERE im.Warehouse in ('M2','M4','MS') " & _
+      "AND im.TrnType = 'A' " & _
+      "AND im.EntryDate BETWEEN '" & startDate & "' AND '" & endDate & "' " & _
+    "ORDER BY im.EntryDate ASC"
+
+    ' === CONNECTION STRING ===
+    strcon = "Provider=SQLOLEDB;" & _
+             "Data Source=" & Server & ";" & _
+             "Initial Catalog=" & database & ";" & _
+             "User ID=Impact_Services;Password=pass;" & _
+             "Trusted_Connection=no;"
+
+    ' === EXECUTE ===
+    Set con = CreateObject("ADODB.Connection")
+    Set rs = CreateObject("ADODB.Recordset")
+
+    con.Open strcon
+    rs.Open sql, con, 1, 1
+
+    '========================
+    ' OUTPUT DATA
+    '========================
+    ws.Range("A7").CopyFromRecordset rs
+    ws.Range("B4").Value = Now
+
+    rs.Close
+    con.Close
+
+    MsgBox "Data refreshed for " & startDate & " to " & endDate, vbInformation
+
+End Sub
+
+
+Sub Search_Adjustment_Naga()
+
+    Dim con As Object
+    Dim rs As Object
+    Dim sql As String
+    Dim Server As String
+    Dim database As String
+    Dim strcon As String
+
+    Dim startDate As String
+    Dim endDate As String
+    
+    Dim ws As Worksheet
+    Dim lastRow As Long
+    
+    Set ws = Sheets("Adjustments-(Naga)")
+    
+    startDate = ws.Range("G3").Value
+    endDate = ws.Range("I3").Value
+
+    '========================
+    ' CLEAR OLD DATA (Row 8 down)
+    '========================
+    lastRow = ws.Cells(ws.Rows.Count, "A").End(xlUp).Row
+    
+    If lastRow >= 7 Then
+        ws.Range("A7:J" & lastRow).ClearContents
+    End If
+
+    ' === SERVER SETTINGS ===
+    Server = "Syspro"
+    database = "Enc_MTC_N"
+
+    ' === SQL QUERY ===
+    sql = _
+    "SELECT " & _
+        "im.StockCode, " & _
+        "im.Warehouse, " & _
+        "im.TrnYear, " & _
+        "im.EntryDate, " & _
+        "STUFF(STUFF(STUFF(RIGHT('00000000' + CAST(TrnTime AS varchar), 8), " & _
+            "3, 0, ':'), " & _
+            "6, 0, ':'), " & _
+            "9, 0, '.') AS AdjustmentTime, " & _
+        "im.TrnQty, " & _
+        "im.TrnValue, " & _
+        "im.Journal, " & _
+        "im.Reference, " & _
+        "ijd.Notation " & _
+    "FROM InvMovements im " & _
+    "LEFT JOIN InvJournalDet ijd " & _
+        "ON im.StockCode = ijd.StockCode " & _
+        "and im.Reference = ijd.Reference " & _
+    "WHERE im.Warehouse in ('M1', 'M3', 'MR') " & _
+      "AND im.TrnType = 'A' " & _
+      "AND im.EntryDate BETWEEN '" & startDate & "' AND '" & endDate & "' " & _
+    "ORDER BY im.EntryDate ASC"
+
+    ' === CONNECTION STRING ===
+    strcon = "Provider=SQLOLEDB;" & _
+             "Data Source=" & Server & ";" & _
+             "Initial Catalog=" & database & ";" & _
+             "User ID=Impact_Services;Password=pass;" & _
+             "Trusted_Connection=no;"
+
+    ' === EXECUTE ===
+    Set con = CreateObject("ADODB.Connection")
+    Set rs = CreateObject("ADODB.Recordset")
+
+    con.Open strcon
+    rs.Open sql, con, 1, 1
+
+    '========================
+    ' OUTPUT DATA
+    '========================
+    ws.Range("A7").CopyFromRecordset rs
+    ws.Range("B4").Value = Now
+
+    rs.Close
+    con.Close
+
+    MsgBox "Data refreshed for " & startDate & " to " & endDate, vbInformation
+
+End Sub
+
